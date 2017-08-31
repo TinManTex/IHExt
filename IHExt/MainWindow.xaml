@@ -115,9 +115,6 @@
                 </Label>
             </WrapPanel>
             
-            
-            
-            
             <Label
                 Visibility="Hidden"
                 x:Name="menuLineTest"
@@ -138,7 +135,7 @@
             </Label>
             <TextBox
                 Visibility="Hidden"
-                x:Name="inputLineTest"
+                x:Name="inputLine"
                 Height="26"
                 MinWidth="36"
                 Foreground="White"

@@ -94,8 +94,9 @@ namespace IHExt {
                 gameProcess.EnableRaisingEvents = true;
                 gameProcess.Exited += new EventHandler(OnGameProcess_Exited);
 
-                focusHandler = new AutomationFocusChangedEventHandler(OnFocusChange);
-                Automation.AddAutomationFocusChangedEventHandler(focusHandler);
+                //DEBUGNOW TODO: unstable
+                //focusHandler = new AutomationFocusChangedEventHandler(OnFocusChange);
+                //Automation.AddAutomationFocusChangedEventHandler(focusHandler);
             }
 
             commands.Add("CanvasVisible", CanvasVisible);
