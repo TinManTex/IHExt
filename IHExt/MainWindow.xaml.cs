@@ -41,5 +41,68 @@ namespace IHExt {
                 e.Handled = true;
             }
         }
+
+        public void ListBox_OnSelectionChanged(object sender, RoutedEventArgs e)
+        {
+            ListBox listBox = sender as ListBox;
+            if (listBox != null)
+            {
+                ListBoxItem lbi = ((sender as ListBox).SelectedItem as ListBoxItem);
+                int selectedIndex = listBox.SelectedIndex;
+
+                if (selectedIndex == -1)//tex no item selected
+                {
+                } else {
+                    var app = (App)Application.Current;
+                    app.ToMgsvCmd("selected|" + listBox.Name + "|" + selectedIndex.ToString());
+                }
+
+                e.Handled = true;
+            }
+        }
+
+        public void ListBox_OnDoubleClick(object sender, RoutedEventArgs e)
+        {
+            ListBox listBox = sender as ListBox;
+            if (listBox != null)
+            {
+                ListBoxItem lbi = ((sender as ListBox).SelectedItem as ListBoxItem);
+                int selectedIndex = listBox.SelectedIndex;
+
+                if (selectedIndex == -1)//tex no item selected
+                {
+                } else
+                {
+                    var app = (App)Application.Current;
+                    app.ToMgsvCmd("activate|" + listBox.Name + "|" + selectedIndex.ToString());
+                }
+
+                e.Handled = true;
+            }
+        }
+
+        private void minButton_Click(object sender, RoutedEventArgs e)
+        {
+            WindowState = WindowState.Minimized;
+        }
+
+        private void Window_Activated(object sender, EventArgs e)
+        {
+            minButton.Visibility = Visibility.Visible;
+        }
+
+        private void Window_Deactivated(object sender, EventArgs e)
+        {
+            minButton.Visibility = Visibility.Hidden;
+        }
+
+        private void Window_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Space)
+            {
+                var app = (App)Application.Current;
+                app.ToMgsvCmd("togglemenu");
+            }
+        }
     }
 }

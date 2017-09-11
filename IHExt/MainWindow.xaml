@@ -7,16 +7,18 @@
         mc:Ignorable="d"
         Title="IHExt" Width="1920" Height="1080" Background="#00000000" WindowState="Maximized" WindowStartupLocation="CenterScreen" Topmost="True" AllowsTransparency="True" WindowStyle="None" BorderThickness="0"
         Loaded="MainWindow_Loaded"
+        Activated="Window_Activated"
+        Deactivated="Window_Deactivated"
+        KeyDown="Window_KeyDown"
         >
     <Viewbox>
-        <Canvas Name="MainCanvas" Width="1920" Height="1080">
-            <Label
-                x:Name="runningLabel"
+        <Canvas Name="MainCanvas" Width="1920" Height="1080" Background="Transparent" UseLayoutRounding="True" SnapsToDevicePixels="True">
+            <Label Name="runningLabel"
                 Content="IHExt for Infinite Heaven"
                 Foreground="White"
                 FontSize="25" 
-                Canvas.Left="66" 
-                Canvas.Top="66">
+                Canvas.Left="45" 
+                Canvas.Top="45">
                 <Label.Effect>
                     <DropShadowEffect
                       ShadowDepth="2"
@@ -26,13 +28,8 @@
                       BlurRadius="0.0" />
                 </Label.Effect>
             </Label>
-            <Label Visibility="Hidden" x:Name="label" Content="Label"  FontSize="29.333"  Foreground="White" Canvas.Left="66" Canvas.Top="519" Opacity="1">
-                <Label.Background>
-                    <SolidColorBrush Color="Azure" Opacity="0.2" />
-                </Label.Background>
-            </Label>
-            <WrapPanel Visibility="Hidden" Canvas.Left="140" Canvas.Top="506">
-                <Label x:Name="menuLineOptionIndex"
+            <WrapPanel Visibility="Hidden"  Canvas.Left="45" Canvas.Top="545">
+                <Label Name="menuLineOptionIndex"
                 Content="1"
                 Foreground="White"
                 Background="Transparent"
@@ -41,7 +38,7 @@
                         <DropShadowEffect ShadowDepth="2" Direction="325" Color="Black" Opacity="1" BlurRadius="0.0" />
                     </Label.Effect>
                 </Label>
-                <Label x:Name="menuLineOptionIndexSep"
+                <Label Name="menuLineOptionIndexSep"
                 Content=":"
                 Foreground="White"
                 Background="Transparent"
@@ -50,7 +47,7 @@
                         <DropShadowEffect ShadowDepth="2" Direction="325" Color="Black" Opacity="1" BlurRadius="0.0" />
                     </Label.Effect>
                 </Label>
-                <Label x:Name="menuLineOptionName"
+                <Label Name="menuLineOptionName"
                 Content="Menu line test"
                 Foreground="White"
                 Background="Transparent"
@@ -59,7 +56,7 @@
                         <DropShadowEffect ShadowDepth="2" Direction="325" Color="Black" Opacity="1" BlurRadius="0.0" />
                     </Label.Effect>
                 </Label>
-                <Label x:Name="menuLineOptionSep"
+                <Label Name="menuLineOptionSep"
                 Content=":"
                 Foreground="White"
                 Background="Transparent"
@@ -69,7 +66,7 @@
                     </Label.Effect>
                 </Label>
                 <TextBox
-                x:Name="menuLineSettingTextEdiableEx"
+                Name="menuLineSettingTextEdiableEx"
                 Text="1"
                     VerticalAlignment="Center"
                 Foreground="White"
@@ -81,15 +78,15 @@
                 </TextBox>
                 <ComboBox SelectedIndex="0">
                     <ComboBoxItem>
-                    <Label
+                        <Label
                 Content="1: Some setting"
                 Foreground="White"
                 Background="Transparent"
                 FontSize="25" >
-                        <Label.Effect>
-                            <DropShadowEffect ShadowDepth="2" Direction="325" Color="Black" Opacity="1" BlurRadius="0.0" />
-                        </Label.Effect>
-                    </Label>
+                            <Label.Effect>
+                                <DropShadowEffect ShadowDepth="2" Direction="325" Color="Black" Opacity="1" BlurRadius="0.0" />
+                            </Label.Effect>
+                        </Label>
                     </ComboBoxItem>
                     <ComboBoxItem>
                         <Label
@@ -104,7 +101,7 @@
                     </ComboBoxItem>
                 </ComboBox>
                 <Label
-                x:Name="menuLineSettingSuffix"
+                Name="menuLineSettingSuffix"
                 Content=">]"
                 Foreground="White"
                 Background="Transparent"
@@ -114,38 +111,82 @@
                     </Label.Effect>
                 </Label>
             </WrapPanel>
-            
-            <Label
-                Visibility="Hidden"
-                x:Name="menuLineTest"
-                Content="1:Menu line test: 1:SomeSetting"
-                Foreground="White"
-                Background="Transparent"
-                FontSize="25" 
-                Canvas.Left="140" 
-                Canvas.Top="506">
-                <Label.Effect>
-                    <DropShadowEffect
-                      ShadowDepth="2"
-                      Direction="325"
-                      Color="Black"
-                      Opacity="1"
-                      BlurRadius="0.0" />
-                </Label.Effect>
-            </Label>
-            <TextBox
-                Visibility="Hidden"
-                x:Name="inputLine"
-                Height="26"
-                MinWidth="36"
-                Foreground="White"
-                Background="Black"
-                FontSize="16" 
-                VerticalContentAlignment="Center"
-                Canvas.Left="140" 
-                Canvas.Top="558"
-                KeyDown="TextControl_OnEnter"
-                />
+            <WrapPanel Name="menuWrap" Visibility="Hidden" Canvas.Left="45" Canvas.Top="550">
+                <Label x:Name="menuLine"
+            Content="1:Menu line test: 1:SomeSetting"
+            Foreground="White"
+            FontSize="20"
+            Canvas.Left="45" 
+            Canvas.Top="545">
+                    <Label.Background>
+                        <SolidColorBrush Color="Black" Opacity="0.75" />
+                    </Label.Background>
+                </Label>
+                <TextBox  
+            Name="inputLine"
+            MinWidth="36"
+            Foreground="Black"
+            Background="White"
+            FontSize="20" 
+            VerticalContentAlignment="Center"
+            Canvas.Left="45" 
+            Canvas.Top="545"
+            KeyDown="TextControl_OnEnter"
+            />
+            </WrapPanel>
+
+            <ListBox Visibility="Hidden"
+            x:Name="lbMenuItems"
+            Foreground="White"
+            FontSize="20" 
+            Canvas.Left="45" 
+            Canvas.Top="45"
+            MaxHeight="500"  
+            MouseDoubleClick="ListBox_OnDoubleClick"
+            >
+                <ListBox.Background>
+                    <SolidColorBrush Color="Black" Opacity="0.75" />
+                </ListBox.Background>
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <!--
+                        <Setter Property="Effect">
+                            <Setter.Value>
+                                <DropShadowEffect ShadowDepth="2" Direction="325" Color="Black" Opacity="1" BlurRadius="0.0" RenderingBias="Quality"/>
+                            </Setter.Value>
+                        </Setter>
+                        -->
+                    </Style>
+                </ListBox.ItemContainerStyle>
+            </ListBox>
+            <Rectangle Name="AnnounceLogBlockout" Visibility="Hidden" Fill="#FFF4F4F5" Height="332" Canvas.Left="44" Stroke="Black" Canvas.Top="596" Width="870"/>
+
+            <TreeView Visibility="Hidden" x:Name="treeView" Canvas.Left="636" Canvas.Top="49"
+            Foreground="White"
+                  
+            FontSize="20">
+
+                <TreeView.Background>
+                    <SolidColorBrush Color="Black" Opacity="0.75" />
+                </TreeView.Background>
+
+                <TreeViewItem >
+                    <!-- <TreeViewItem.Header>
+                        <TextBlock Text="ACC Menu" Foreground="White"/>
+                    </TreeViewItem.Header>-->
+                    <TextBlock Text="1:Menu 1" Foreground="White"/>
+                    <TextBlock Text="2:Menu 2" Foreground="White"/>
+                    <TreeViewItem>
+                        <TreeViewItem.Header>
+                            <TextBlock Text="3:Menu 3" Foreground="White"/>
+                        </TreeViewItem.Header>
+                        <TextBlock Text="1:item 1" Foreground="White"/>
+                        <TextBlock Text="2:item 2" Foreground="White"/>
+                    </TreeViewItem>
+                </TreeViewItem>
+            </TreeView>
+            <Button x:Name="minButton" Content="-" Canvas.Left="1880" Canvas.Top="20" Width="20" Height="20" Click="minButton_Click"/>
         </Canvas>
     </Viewbox>
 </Window>
