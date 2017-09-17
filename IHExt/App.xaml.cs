@@ -40,11 +40,12 @@ namespace IHExt {
         //
         ObservableCollection<string> menuItems = new ObservableCollection<string>();
 
+        //tex combo
+        ObservableCollection<string> settingItems = new ObservableCollection<string>();
+
         //
         Process gameProcess = null;
         AutomationFocusChangedEventHandler focusHandler = null;
-
-        bool hadArgs = false;//DEBUGNOW
 
         private void Application_Startup(object sender, StartupEventArgs e) {
             bool exitWithMgsv = true;//DEBUG
@@ -54,7 +55,6 @@ namespace IHExt {
             var args = e.Args;
             if (args.Count() > 0) {
                 gameDir = args[0];
-                hadArgs = true;//DEBUG
             }
 
             this.gameDir = gameDir;
@@ -107,11 +107,15 @@ namespace IHExt {
             commands.Add("CreateUiElement", CreateUiElement);
             commands.Add("RemoveUiElement", RemoveUiElement);
             commands.Add("SetContent", SetContent);
+            commands.Add("SetText", SetText);
             commands.Add("UiElementVisible", UiElementVisible);
             commands.Add("ClearTable", ClearTable);
             commands.Add("AddToTable", AddToTable);
             commands.Add("UpdateTable", UpdateTable);
             commands.Add("SelectItem", SelectItem);
+            commands.Add("ClearCombo", ClearCombo);
+            commands.Add("AddToCombo", AddToCombo);
+            commands.Add("SelectCombo", SelectCombo);
 
             FileSystemWatcher watcher = new FileSystemWatcher();
             watcher.Path = Path.GetDirectoryName(toExtFilePath);
@@ -159,10 +163,27 @@ namespace IHExt {
             menuItems.Add("13:Menu line test: 1:SomeSetting");
             menuItems.Add("14:Menu line test longer: 14:Some much longer setting");
 
-            mainWindow.lbMenuItems.ItemsSource = menuItems;
+            //DEBUGNOW
+            settingItems.Add("1. Setting test");
+            settingItems.Add("2. Setting test with long text test");
+            settingItems.Add("3. Setting test");
+            settingItems.Add("4. Setting test");
+            settingItems.Add("5. Setting test");
+            settingItems.Add("6. Setting test");
+            settingItems.Add("7. Setting test");
+            settingItems.Add("8. Setting test");
+            settingItems.Add("9. Setting test");
+            settingItems.Add("1. Setting test");
+            settingItems.Add("10. Setting test");
+            settingItems.Add("11. Setting test");
+            settingItems.Add("12. Setting test");
 
+            mainWindow.menuItems.ItemsSource = menuItems;
+            mainWindow.menuSetting.ItemsSource = settingItems;
 
             SetFocusToGame();
+
+            ToMgsvCmd("ready");
         }
 
         //tex on ih_toextcmds.txt changed
@@ -188,7 +209,7 @@ namespace IHExt {
                                     Console.WriteLine("MGSV session changed");
                                     mgsvSession = messageId;
                                     //DEBUGNOW mgsvToExtComplete = 0;//tex reset
-                                    ToMgsvCmd("sessionChange");//tex a bit of nothing to get the extToMgsvComplete to update from the message, mgsv does likewise DEBUGNOW
+                                    ToMgsvCmd("sessionchange");//tex a bit of nothing to get the extToMgsvComplete to update from the message, mgsv does likewise DEBUGNOW
                                 }
 
                                 int arg = 0;
@@ -468,6 +489,55 @@ namespace IHExt {
             });
         }//end SetContent
 
+        //args string name, string content
+        private void SetText(string[] args)
+        {
+            if (args.Count() < 1 + 2)
+            {
+                return;
+            }
+
+            string name = args[2];
+            string content = args[3];
+            if (name == null || content == null)
+            {
+                return;
+            }
+
+            //UIElement uiElement;
+            //if (!uiElements.TryGetValue(name, out uiElement)) {
+            //    //DEBUGNOW TODO WARN
+            //    //return;
+            //}
+
+            this.Dispatcher.Invoke(() => {
+                try
+                {
+                    UIElement uiElement = FindCanvasElement(name);
+                    if (uiElement == null)
+                    {
+                        //DEBUGNOW TODO WARN
+                        return;
+                    }
+
+                    TextBlock contentControl = uiElement as TextBlock;
+                    if (contentControl == null)
+                    {
+                        //DEBUGNOW TODO WARN
+                        return;
+                    }
+
+                    content.Replace(@"\n", "&#10;");//DEBUGNOW
+
+                    contentControl.Text = content;
+                } catch (Exception e)
+                {
+                    //DEBUGNOW TODO WARN
+                    return;
+                }
+            });
+        }//end SetText
+
         //args string name, bool visible
         private void UiElementVisible(string[] args) {
             if (args.Count() < 1 + 1) {
@@ -513,11 +583,11 @@ namespace IHExt {
             this.Dispatcher.Invoke(() => {
                 var mainWindow = (MainWindow)Application.Current.MainWindow;
 
-                mainWindow.lbMenuItems.SelectionChanged -= mainWindow.ListBox_OnSelectionChanged; //KLUDGE SelectionChanged event fires on all changes, I just want on user changes
+                mainWindow.menuItems.SelectionChanged -= mainWindow.ListBox_OnSelectionChanged; //KLUDGE SelectionChanged event fires on all changes, I just want on user changes
 
                 menuItems.Clear();
 
-                mainWindow.lbMenuItems.SelectionChanged += mainWindow.ListBox_OnSelectionChanged;
+                mainWindow.menuItems.SelectionChanged += mainWindow.ListBox_OnSelectionChanged;
             });
         }
 
@@ -541,11 +611,11 @@ namespace IHExt {
             this.Dispatcher.Invoke(() => {
                 var mainWindow = (MainWindow)Application.Current.MainWindow;
 
-                mainWindow.lbMenuItems.SelectionChanged -= mainWindow.ListBox_OnSelectionChanged; //KLUDGE SelectionChanged event fires on all changes, I just want on user changes
+                mainWindow.menuItems.SelectionChanged -= mainWindow.ListBox_OnSelectionChanged; //KLUDGE SelectionChanged event fires on all changes, I just want on user changes
 
                 menuItems.Add(itemString);
 
-                mainWindow.lbMenuItems.SelectionChanged += mainWindow.ListBox_OnSelectionChanged; 
+                mainWindow.menuItems.SelectionChanged += mainWindow.ListBox_OnSelectionChanged; 
             });
         }
 
@@ -603,12 +673,96 @@ namespace IHExt {
                 
                 if (selectedIndex >= 0 && selectedIndex < menuItems.Count())
                 {
-                    mainWindow.lbMenuItems.SelectionChanged -= mainWindow.ListBox_OnSelectionChanged; //KLUDGE SelectionChanged event fires on all changes, I just want on user changes
+                    mainWindow.menuItems.SelectionChanged -= mainWindow.ListBox_OnSelectionChanged; //KLUDGE SelectionChanged event fires on all changes, I just want on user changes
 
-                    mainWindow.lbMenuItems.SelectedIndex = selectedIndex;
-                    mainWindow.lbMenuItems.ScrollIntoView(mainWindow.lbMenuItems.Items[selectedIndex]);
+                    mainWindow.menuItems.SelectedIndex = selectedIndex;
+                    mainWindow.menuItems.ScrollIntoView(mainWindow.menuItems.Items[selectedIndex]);
 
-                    mainWindow.lbMenuItems.SelectionChanged += mainWindow.ListBox_OnSelectionChanged;
+                    mainWindow.menuItems.SelectionChanged += mainWindow.ListBox_OnSelectionChanged;
+                }
+            });
+        }
+
+        private void ClearCombo(string[] args)
+        {
+            if (args.Count() < 1 + 1)
+            {
+                return;
+            }
+            //TODO dict of tables
+            string name = args[2];
+            if (name == null)
+            {
+                return;
+            }
+            this.Dispatcher.Invoke(() => {
+                var mainWindow = (MainWindow)Application.Current.MainWindow;
+
+                mainWindow.menuSetting.SelectionChanged -= mainWindow.ComboBox_OnSelectionChanged; //KLUDGE SelectionChanged event fires on all changes, I just want on user changes
+
+                settingItems.Clear();
+
+                mainWindow.menuSetting.SelectionChanged += mainWindow.ComboBox_OnSelectionChanged;
+            });
+        }
+
+        private void AddToCombo(string[] args)
+        {
+            if (args.Count() < 1 + 2)
+            {
+                return;
+            }
+            //TODO dict of tables
+            string name = args[2];
+            if (name == null)
+            {
+                return;
+            }
+            string itemString = args[3];
+            if (itemString == null)
+            {
+                return;
+            }
+            this.Dispatcher.Invoke(() => {
+                var mainWindow = (MainWindow)Application.Current.MainWindow;
+
+                mainWindow.menuSetting.SelectionChanged -= mainWindow.ComboBox_OnSelectionChanged; //KLUDGE SelectionChanged event fires on all changes, I just want on user changes
+
+                settingItems.Add(itemString);
+
+                mainWindow.menuSetting.SelectionChanged += mainWindow.ComboBox_OnSelectionChanged;
+            });
+        }
+
+        private void SelectCombo(string[] args)
+        {
+            if (args.Count() < 1 + 2)
+            {
+                return;
+            }
+            //TODO dict of tables
+            string name = args[2];
+            if (name == null)
+            {
+                return;
+            }
+
+            int selectedIndex;
+            if (!int.TryParse(args[3], out selectedIndex))
+            {
+                return;
+            }
+
+            this.Dispatcher.Invoke(() => {
+                var mainWindow = (MainWindow)Application.Current.MainWindow;
+
+                if (selectedIndex >= 0 && selectedIndex < menuItems.Count())
+                {
+                    mainWindow.menuSetting.SelectionChanged -= mainWindow.ComboBox_OnSelectionChanged; //KLUDGE SelectionChanged event fires on all changes, I just want on user changes
+
+                    mainWindow.menuSetting.SelectedIndex = selectedIndex;
+     
+                    mainWindow.menuSetting.SelectionChanged += mainWindow.ComboBox_OnSelectionChanged;
                 }
             });
         }

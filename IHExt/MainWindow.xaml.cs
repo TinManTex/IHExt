@@ -66,7 +66,7 @@ namespace IHExt {
             ListBox listBox = sender as ListBox;
             if (listBox != null)
             {
-                ListBoxItem lbi = ((sender as ListBox).SelectedItem as ListBoxItem);
+                ListBoxItem lbi = (listBox.SelectedItem as ListBoxItem);
                 int selectedIndex = listBox.SelectedIndex;
 
                 if (selectedIndex == -1)//tex no item selected
@@ -75,6 +75,26 @@ namespace IHExt {
                 {
                     var app = (App)Application.Current;
                     app.ToMgsvCmd("activate|" + listBox.Name + "|" + selectedIndex.ToString());
+                }
+
+                e.Handled = true;
+            }
+        }
+
+        public void ComboBox_OnSelectionChanged(object sender, RoutedEventArgs e)
+        {
+            ComboBox comboBox = sender as ComboBox;
+            if (comboBox != null)
+            {
+                ComboBoxItem lbi = (comboBox.SelectedItem as ComboBoxItem);
+                int selectedIndex = comboBox.SelectedIndex;
+
+                if (selectedIndex == -1)//tex no item selected
+                {
+                } else
+                {
+                    var app = (App)Application.Current;
+                    app.ToMgsvCmd("selectedcombo|" + comboBox.Name + "|" + selectedIndex.ToString());
                 }
 
                 e.Handled = true;
@@ -102,6 +122,34 @@ namespace IHExt {
             {
                 var app = (App)Application.Current;
                 app.ToMgsvCmd("togglemenu");
+            }
+        }
+
+        private void ComboBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                ComboBox comboBox = (ComboBox)sender;
+
+                var app = (App)Application.Current;
+                app.ToMgsvCmd("input|" + comboBox.Name + "|" + comboBox.Text);
+
+                comboBox.Text = String.Empty;
+
+                e.Handled = true;
+            }
+        }
+
+        private void ComboBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            //tex user edited combobox
+            ComboBox comboBox = (ComboBox)sender;
+            if (comboBox.SelectedIndex == -1)
+            {
+                var app = (App)Application.Current;
+                app.ToMgsvCmd("comboboxtocurrent|" + comboBox.Name + "|" + comboBox.Text);
+
+                e.Handled = true;
             }
         }
     }

@@ -14,6 +14,7 @@
     <Viewbox>
         <Canvas Name="MainCanvas" Width="1920" Height="1080" Background="Transparent" UseLayoutRounding="True" SnapsToDevicePixels="True">
             <Label Name="runningLabel"
+                Visibility="Hidden"
                 Content="IHExt for Infinite Heaven"
                 Foreground="White"
                 FontSize="25" 
@@ -111,37 +112,29 @@
                     </Label.Effect>
                 </Label>
             </WrapPanel>
-            <WrapPanel Name="menuWrap" Visibility="Hidden" Canvas.Left="45" Canvas.Top="550">
-                <Label x:Name="menuLine"
-            Content="1:Menu line test: 1:SomeSetting"
-            Foreground="White"
-            FontSize="20"
-            Canvas.Left="45" 
-            Canvas.Top="545">
-                    <Label.Background>
-                        <SolidColorBrush Color="Black" Opacity="0.75" />
-                    </Label.Background>
-                </Label>
-                <TextBox  
-            Name="inputLine"
-            MinWidth="36"
-            Foreground="Black"
-            Background="White"
-            FontSize="20" 
-            VerticalContentAlignment="Center"
-            Canvas.Left="45" 
-            Canvas.Top="545"
-            KeyDown="TextControl_OnEnter"
-            />
-            </WrapPanel>
 
-            <ListBox Visibility="Hidden"
-            x:Name="lbMenuItems"
+
+            <Label x:Name="menuTitle"
+                   Visibility="Hidden"
+                Content="Some Menu test / Some other menu"
+                Foreground="White"
+                FontSize="20"
+                Canvas.Left="45" 
+                Canvas.Top="45">
+                <Label.Background>
+                    <SolidColorBrush Color="Black" Opacity="0.75" />
+                </Label.Background>
+            </Label>
+
+            <ListBox 
+                Visibility="Hidden"
+                Height="460"
+            x:Name="menuItems"
             Foreground="White"
             FontSize="20" 
             Canvas.Left="45" 
-            Canvas.Top="45"
-            MaxHeight="500"  
+            Canvas.Top="85"
+            MaxHeight="460"  
             MouseDoubleClick="ListBox_OnDoubleClick"
             >
                 <ListBox.Background>
@@ -160,17 +153,62 @@
                     </Style>
                 </ListBox.ItemContainerStyle>
             </ListBox>
+          
+            <WrapPanel Name="menuWrap" 
+                       Visibility="Hidden"
+                       Canvas.Left="45" Canvas.Top="550">
+                <Label x:Name="menuLine"
+                Content="1:Menu line test: 1:SomeSetting"
+                Foreground="White"
+                FontSize="20"
+                VerticalAlignment="Center"
+                Canvas.Left="45" 
+                Canvas.Top="545">
+                    <Label.Background>
+                        <SolidColorBrush Color="Black" Opacity="0.75" />
+                    </Label.Background>
+                </Label>
+
+                <ComboBox Name="menuSetting" IsEditable="True" FontSize="20" SelectedIndex="0" MinWidth="40" KeyDown="ComboBox_KeyDown" LostFocus="ComboBox_LostFocus">
+                </ComboBox>
+            </WrapPanel>
+
+            <TextBlock Name="menuHelp"
+            Visibility="Hidden"
+            TextWrapping="WrapWithOverflow"
+            Padding="10"
+            Text="Some super long text and stuff that might describe and option. Yet more text letst see how this wraps. Some super long text and stuff that might describe and option. Yet more text letst see how this wraps. And more. Some super long text and stuff that might describe and option. Yet more text letst see how this wraps. How much more. Some super long text and stuff that might describe and option. Yet more text lets see how this wraps. So much more. Some super long text and stuff that might describe and option. Yet more text letst see how this wraps."
+            Foreground="White"
+            FontSize="20"
+            MaxWidth="615"
+            MaxHeight="439"
+            Canvas.Left="45" 
+            Canvas.Top="596">
+                <TextBlock.Background>
+                    <SolidColorBrush Color="Black" Opacity="0.75" />
+                </TextBlock.Background>
+            </TextBlock>
+
+            <TextBox Visibility="Hidden"
+                Name="inputLine"
+                MinWidth="36"
+                Foreground="Black"
+                Background="White"
+                FontSize="20" 
+                VerticalContentAlignment="Center"
+                Canvas.Left="45" 
+                Canvas.Top="545"
+                KeyDown="TextControl_OnEnter"
+                />
             <Rectangle Name="AnnounceLogBlockout" Visibility="Hidden" Fill="#FFF4F4F5" Height="332" Canvas.Left="44" Stroke="Black" Canvas.Top="596" Width="870"/>
+
 
             <TreeView Visibility="Hidden" x:Name="treeView" Canvas.Left="636" Canvas.Top="49"
             Foreground="White"
-                  
             FontSize="20">
-
                 <TreeView.Background>
                     <SolidColorBrush Color="Black" Opacity="0.75" />
                 </TreeView.Background>
-
                 <TreeViewItem >
                     <!-- <TreeViewItem.Header>
                         <TextBlock Text="ACC Menu" Foreground="White"/>
@@ -187,6 +225,7 @@
                 </TreeViewItem>
             </TreeView>
             <Button x:Name="minButton" Content="-" Canvas.Left="1880" Canvas.Top="20" Width="20" Height="20" Click="minButton_Click"/>
+          
         </Canvas>
     </Viewbox>
 </Window>
