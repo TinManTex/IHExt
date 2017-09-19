@@ -102,6 +102,7 @@ namespace IHExt {
                 //Automation.AddAutomationFocusChangedEventHandler(focusHandler);
             }
 
+            commands.Add("Shutdown", ShutdownApp);
             commands.Add("TakeFocus", TakeFocus);
             commands.Add("CanvasVisible", CanvasVisible);
             commands.Add("CreateUiElement", CreateUiElement);
@@ -132,8 +133,19 @@ namespace IHExt {
             MainWindow mainWindow = new MainWindow();
             mainWindow.Show();
 
-            //DEBUGNOW
-            //DEBUGNOW
+
+            AddTestMenuItems(); //DEBUG
+
+            mainWindow.menuItems.ItemsSource = menuItems;
+            mainWindow.menuSetting.ItemsSource = settingItems;
+
+            SetFocusToGame();
+
+            ToMgsvCmd("ready");
+        }
+
+        void AddTestMenuItems()
+        {
             menuItems.Add("1:Menu line test: 1:SomeSetting");
             menuItems.Add("2:Menu line test longer: 14:Some much longer setting");
             menuItems.Add("3:Menu line test: 1:SomeSetting");
@@ -163,7 +175,6 @@ namespace IHExt {
             menuItems.Add("13:Menu line test: 1:SomeSetting");
             menuItems.Add("14:Menu line test longer: 14:Some much longer setting");
 
-            //DEBUGNOW
             settingItems.Add("1. Setting test");
             settingItems.Add("2. Setting test with long text test");
             settingItems.Add("3. Setting test");
@@ -177,13 +188,6 @@ namespace IHExt {
             settingItems.Add("10. Setting test");
             settingItems.Add("11. Setting test");
             settingItems.Add("12. Setting test");
-
-            mainWindow.menuItems.ItemsSource = menuItems;
-            mainWindow.menuSetting.ItemsSource = settingItems;
-
-            SetFocusToGame();
-
-            ToMgsvCmd("ready");
         }
 
         //tex on ih_toextcmds.txt changed
@@ -204,7 +208,7 @@ namespace IHExt {
                         string[] args = line.Split(delimiters);
                         int messageId;
                         if (Int32.TryParse(args[0], out messageId)) {
-                            if (count == 0) { //tex messageid of first entry is mgsv session id 
+                            if (count == 0) { //tex messageid of first line is mgsv session id 
                                 if (messageId != mgsvSession) {
                                     Console.WriteLine("MGSV session changed");
                                     mgsvSession = messageId;
@@ -217,9 +221,9 @@ namespace IHExt {
                                     extToMgsvComplete = arg;
                                 }
                             } else {
-                                if (messageId > mgsvToExtComplete) {//tex havent done this command yet yet
+                                if (messageId > mgsvToExtComplete) {//tex IHExt hasn't done this command yet yet
                                     string command = args[1];
-                                    //Do command
+
                                     if (command == null) {
                                         //TODO: warn
                                     } else {
@@ -351,11 +355,18 @@ namespace IHExt {
             var mainWindow = (MainWindow)Application.Current.MainWindow;
             var canvas = mainWindow.MainCanvas;
 
-            UIElement element = (UIElement)canvas.FindName(name); //canvas.Children.OfType<FrameworkElement>().FirstOrDefault(e => e.Name == name);
+            UIElement element = (UIElement)canvas.FindName(name);
             return element;
         }
 
         //from mgsv commands
+        private void ShutdownApp(string[] args)
+        {
+            this.Dispatcher.Invoke(() => {
+                Application.Current.Shutdown();
+            });
+        }
+
         private void TakeFocus(string[] args)
         {
             this.Dispatcher.Invoke(() => {
