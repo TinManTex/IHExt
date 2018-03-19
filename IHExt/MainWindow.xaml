@@ -155,7 +155,7 @@
             </ListBox>
           
             <WrapPanel Name="menuWrap" 
-                       Visibility="Hidden"
+                     Visibility="Hidden"
                        Canvas.Left="45" Canvas.Top="550">
                 <Label x:Name="menuLine"
                 Content="1:Menu line test: 1:SomeSetting"

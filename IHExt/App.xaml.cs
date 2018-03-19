@@ -61,15 +61,22 @@ namespace IHExt
                 gameDir = args[0];
             }
 
-            string gameProcessName = "mgsvtpp";
+            string modDir = "mod";
             if (args.Count() > 1)
             {
-                gameProcessName = args[1];
+                modDir = args[1];
+            }
+
+
+            string gameProcessName = "mgsvtpp";
+            if (args.Count() > 2)
+            {
+                gameProcessName = args[2];
             }
 
             this.gameDir = gameDir;
-            this.toExtFilePath = gameDir + @"\mod\ih_toextcmds.txt";
-            this.toMgsvFilePath = gameDir + @"\mod\ih_tomgsvcmds.txt";
+            this.toExtFilePath = $"{gameDir}/{modDir}/ih_toextcmds.txt";
+            this.toMgsvFilePath = $"{gameDir}/{modDir}/ih_tomgsvcmds.txt";
 
             bool foundGameDir = true;
 
@@ -411,8 +418,9 @@ namespace IHExt
             var mainWindow = (MainWindow)Application.Current.MainWindow;
             var canvas = mainWindow.MainCanvas;
 
-            UIElement element = (UIElement)canvas.FindName(name);
-            return element;
+            var element = canvas.FindName(name);
+            UIElement uiElement = (UIElement)element;
+            return uiElement;
         }
 
         //from mgsv commands
@@ -436,6 +444,7 @@ namespace IHExt
                     if (gameProcesses.Count() > 1)
                     {
                     }*/
+                }
             });
         }
 
@@ -492,12 +501,14 @@ namespace IHExt
             this.Dispatcher.Invoke(() => {
                 try
                 {
-                    var uiElement = (UIElement)XamlReader.Parse(xamlStr);
+                    var uiElement = (FrameworkElement)XamlReader.Parse(xamlStr);
                     uiElements[name] = uiElement;
 
                     var mainWindow = (MainWindow)Application.Current.MainWindow;
                     var canvas = mainWindow.MainCanvas;
+                    canvas.RegisterName(uiElement.Name, uiElement);
                     canvas.Children.Add(uiElement);
+                    canvas.ApplyTemplate();
                 } catch (Exception e)
                 {
                     //DEBUGNOW TODO WARN
