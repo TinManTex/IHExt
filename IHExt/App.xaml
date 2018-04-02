@@ -2,7 +2,10 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:IHExt"
-             Startup="Application_Startup">
+             Startup="Application_Startup"
+             Activated="OnAppActivated"
+             Deactivated="OnAppDeactivated"
+             >
     <Application.Resources>
          
     </Application.Resources>

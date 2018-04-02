@@ -27,6 +27,13 @@ namespace IHExt {
         }
 
         void MainWindow_Loaded(object sender, RoutedEventArgs e) {
+            this.AnnounceLogBlockout.Visibility = Visibility.Hidden;
+            this.runningLabel.Visibility = Visibility.Hidden;
+            this.menuTitle.Visibility = Visibility.Hidden;
+            this.menuItems.Visibility = Visibility.Hidden;
+            this.menuTestWrap.Visibility = Visibility.Hidden;
+            this.menuWrap.Visibility = Visibility.Hidden;
+            this.menuHelp.Visibility = Visibility.Hidden;
         }
 
         void TextControl_OnEnter(object sender, KeyEventArgs e) {
@@ -151,6 +158,25 @@ namespace IHExt {
 
                 e.Handled = true;
             }
+        }
+
+        private void OnGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+        {
+            var app = (App)Application.Current;
+            app.ToMgsvCmd("GotKeyboardFocus|" + menuLine.Name);
+            menuLine.Select(0, menuLine.Text.Length);
+
+            e.Handled = true;
+        }
+
+        private void OnKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                var app = (App)Application.Current;
+                app.ToMgsvCmd("EnterText|" + menuLine.Name + "|" + menuLine.Text);
+            }
+            //DEBUGNOW e.Handled = true;
         }
     }
 }

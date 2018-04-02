@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Markup;
 
 namespace IHExt
@@ -131,6 +132,7 @@ namespace IHExt
             commands.Add("RemoveUiElement", RemoveUiElement);
             commands.Add("SetContent", SetContent);
             commands.Add("SetText", SetText);
+            commands.Add("SetTextBox", SetTextBox);
             commands.Add("UiElementVisible", UiElementVisible);
             commands.Add("ClearTable", ClearTable);
             commands.Add("AddToTable", AddToTable);
@@ -139,6 +141,7 @@ namespace IHExt
             commands.Add("ClearCombo", ClearCombo);
             commands.Add("AddToCombo", AddToCombo);
             commands.Add("SelectCombo", SelectCombo);
+            commands.Add("SelectAllText", SelectAllText);
 
             FileSystemWatcher watcher = new FileSystemWatcher();
             watcher.Path = Path.GetDirectoryName(toExtFilePath);
@@ -288,6 +291,21 @@ namespace IHExt
             gameProcess = null;
             this.Dispatcher.Invoke(() => {
                 Application.Current.Shutdown();
+            });
+        }
+
+        private void OnAppActivated(object sender, EventArgs e)
+        {
+
+        }
+
+        private void OnAppDeactivated(object sender, EventArgs e)
+        {
+            this.Dispatcher.Invoke(() => {
+                var mainWindow = (MainWindow)Application.Current.MainWindow;
+
+                //tex set focus away from menuLine else it will go into search everytime after the first time user selects it 
+                mainWindow.menuItems.Focus();
             });
         }
 
@@ -595,6 +613,7 @@ namespace IHExt
             });
         }//end SetContent
 
+        //for textblock
         //args string name, string content
         private void SetText(string[] args)
         {
@@ -627,6 +646,56 @@ namespace IHExt
                     }
 
                     TextBlock contentControl = uiElement as TextBlock;
+                    if (contentControl == null)
+                    {
+                        //DEBUGNOW TODO WARN
+                        return;
+                    }
+
+                    content.Replace(@"\n", "&#10;");//DEBUGNOW
+
+                    contentControl.Text = content;
+                } catch (Exception e)
+                {
+                    //DEBUGNOW TODO WARN
+                    return;
+                }
+            });
+        }//end SetText
+
+        //for textbox
+        //args string name, string content
+        private void SetTextBox(string[] args)
+        {
+            if (args.Count() < 1 + 2)
+            {
+                return;
+            }
+
+            string name = args[2];
+            string content = args[3];
+            if (name == null || content == null)
+            {
+                return;
+            }
+
+            //UIElement uiElement;
+            //if (!uiElements.TryGetValue(name, out uiElement)) {
+            //    //DEBUGNOW TODO WARN
+            //    //return;
+            //}
+
+            this.Dispatcher.Invoke(() => {
+                try
+                {
+                    UIElement uiElement = FindCanvasElement(name);
+                    if (uiElement == null)
+                    {
+                        //DEBUGNOW TODO WARN
+                        return;
+                    }
+
+                    TextBox contentControl = uiElement as TextBox;
                     if (contentControl == null)
                     {
                         //DEBUGNOW TODO WARN
@@ -879,5 +948,47 @@ namespace IHExt
                 }
             });
         }
+
+        //for textbox
+        //args string name
+        private void SelectAllText(string[] args)
+        {
+            if (args.Count() < 1 + 1)
+            {
+                return;
+            }
+
+            string name = args[2];
+            if (name == null )
+            {
+                return;
+            }
+
+            this.Dispatcher.Invoke(() => {
+                try
+                {
+                    UIElement uiElement = FindCanvasElement(name);
+                    if (uiElement == null)
+                    {
+                        //DEBUGNOW TODO WARN
+                        return;
+                    }
+
+                    TextBox contentControl = uiElement as TextBox;
+                    if (contentControl == null)
+                    {
+                        //DEBUGNOW TODO WARN
+                        return;
+                    }
+
+                    contentControl.Select(0, contentControl.Text.Length);
+                } catch (Exception e)
+                {
+                    //DEBUGNOW TODO WARN
+                    return;
+                }
+            });
+        }//end SetText
+
     }//app class
 }//namespace
