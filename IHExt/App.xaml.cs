@@ -981,7 +981,7 @@ namespace IHExt
                         return;
                     }
 
-                    contentControl.Select(0, contentControl.Text.Length);
+                    contentControl.SelectAll();
                 } catch (Exception e)
                 {
                     //DEBUGNOW TODO WARN

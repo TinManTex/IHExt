@@ -164,7 +164,7 @@ namespace IHExt {
         {
             var app = (App)Application.Current;
             app.ToMgsvCmd("GotKeyboardFocus|" + menuLine.Name);
-            menuLine.Select(0, menuLine.Text.Length);
+            menuLine.SelectAll();
 
             e.Handled = true;
         }
@@ -177,6 +177,25 @@ namespace IHExt {
                 app.ToMgsvCmd("EnterText|" + menuLine.Name + "|" + menuLine.Text);
             }
             //DEBUGNOW e.Handled = true;
+        }
+
+        private void OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+
+            TextBox textBox = sender as TextBox;
+
+            if (textBox != null)
+
+            {
+                if (!textBox.IsKeyboardFocused)
+                {
+                    textBox.Focus();
+
+                    textBox.SelectAll();
+
+                    e.Handled = true;
+                }
+            }
         }
     }
 }

@@ -164,7 +164,7 @@
                 VerticalAlignment="Stretch"
                 
                 Canvas.Left="45" 
-                Canvas.Top="545" GotKeyboardFocus="OnGotKeyboardFocus" KeyDown="OnKeyDown">
+                Canvas.Top="545" GotKeyboardFocus="OnGotKeyboardFocus" KeyDown="OnKeyDown" PreviewMouseLeftButtonDown="OnPreviewMouseLeftButtonDown">
                     <TextBox.Background>
                         <SolidColorBrush Color="Black" Opacity="0.75" />
                     </TextBox.Background>
