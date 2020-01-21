@@ -1,10 +1,13 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Configuration;
 using System.Data;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Pipes;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -16,18 +19,22 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Markup;
 
-namespace IHExt
-{
+namespace IHExt {
     /// <summary>
     /// Interaction logic for App.xaml
     /// </summary>
-    public partial class App : Application
-    {
+    public partial class App : Application {
+        private bool usePipe = false;
+
+        string serverInName = "mgsv_in";
+        string serverOutName = "mgsv_out";
+
         private string gameDir;
         private string toExtFilePath;
         private string toMgsvFilePath;
 
         private SortedDictionary<int, string> extToMgsvCmds = new SortedDictionary<int, string>();//tex from ext to mgsv
+        private ConcurrentQueue<string> extToMgsvCmdQueue = new ConcurrentQueue<string>();
 
         private Dictionary<string, Action<string[]>> commands = new Dictionary<string, Action<string[]>>();
 
@@ -50,29 +57,43 @@ namespace IHExt
         Process gameProcess = null;
         AutomationFocusChangedEventHandler focusHandler = null;
 
-        private void Application_Startup(object sender, StartupEventArgs e)
-        {
+        private void Application_Startup(object sender, StartupEventArgs e) {
+            Debugger.Launch();//DEBUGNOW
+            Console.WriteLine("IHExt");//tex: To see console output change Project properties -> Application -> Output Type to Console Application
+
             bool exitWithGame = true;//DEBUG
 
 
-            string gameDir = @"C:\GamesSD\MGS_TPP";//DEBUG
+            string gameDir = @"C:\Games\Steam\steamapps\common\MGS_TPP";//DEBUG
             var args = e.Args;
-            if (args.Count() > 0)
-            {
+            if (args.Count() > 0) {
                 gameDir = args[0];
             }
 
             string modDir = "mod";
-            if (args.Count() > 1)
-            {
+            if (args.Count() > 1) {
                 modDir = args[1];
             }
 
-
             string gameProcessName = "mgsvtpp";
-            if (args.Count() > 2)
-            {
+            if (args.Count() > 2) {
                 gameProcessName = args[2];
+            }
+
+            //bool usePipe = false;//GLOBAL
+            if (args.Count() > 3) {
+                serverInName = args[3];
+                usePipe = true;
+            }
+
+            if (args.Count() > 4) {
+                serverOutName = args[4];
+                usePipe = true;
+            }
+
+            Console.WriteLine("args:");
+            foreach (string arg in args) {
+                Console.WriteLine(arg);
             }
 
             this.gameDir = gameDir;
@@ -81,37 +102,31 @@ namespace IHExt
 
             bool foundGameDir = true;
 
-            if (!Directory.Exists(gameDir))
-            {
+            if (!Directory.Exists(gameDir)) {
                 Console.WriteLine("Could not find gameDir: {0}", gameDir);
                 Console.WriteLine("Please launch this program via Infinite Heaven.");
                 Console.WriteLine("Or set the -gameDir arg correctly when launching this program.");
                 foundGameDir = false;
             }
-            if (!File.Exists(toExtFilePath))
-            {
+            if (!usePipe && !File.Exists(toExtFilePath)) {
                 Console.WriteLine("Could not find fromMGSVFile: {0}", toExtFilePath);
                 foundGameDir = false;
             }
 
-            if (!foundGameDir)
-            {
+            if (!foundGameDir) {
                 Application.Current.Shutdown();
                 return;
             }
 
-            if (exitWithGame)
-            {
+            if (exitWithGame) {
                 Process[] gameProcesses = Process.GetProcessesByName(gameProcessName);
-                if (gameProcesses.Count() == 0)
-                {
-                    //DEBUGNOW message gameProcessName not started
+                if (gameProcesses.Count() == 0) {
+                    Console.WriteLine("WARNING: " + gameProcessName + " not found, exiting.");
                     Application.Current.Shutdown();
                     return;
                 }
-                if (gameProcesses.Count() > 1)
-                {
-                    //DEBUGNOW WARN more than one gameProcessName process found
+                if (gameProcesses.Count() > 1) {
+                    Console.WriteLine("WARNING: more than one " + gameProcessName + " found, exiting.");
                     Application.Current.Shutdown();
                     return;
                 }
@@ -143,17 +158,28 @@ namespace IHExt
             commands.Add("SelectCombo", SelectCombo);
             commands.Add("SelectAllText", SelectAllText);
 
-            FileSystemWatcher watcher = new FileSystemWatcher();
-            watcher.Path = Path.GetDirectoryName(toExtFilePath);
-            watcher.Filter = Path.GetFileName(toExtFilePath);
-            watcher.NotifyFilter = NotifyFilters.LastWrite;
-            watcher.EnableRaisingEvents = true;//tex < allow subscribed event -v- to actually fire
-            watcher.Changed += new FileSystemEventHandler(OnToExtChanged);
+            //tex legacy IH ipc via messages in a txt file
+            if (!usePipe) {
+                FileSystemWatcher watcher = new FileSystemWatcher();
+                watcher.Path = Path.GetDirectoryName(toExtFilePath);
+                watcher.Filter = Path.GetFileName(toExtFilePath);
+                watcher.NotifyFilter = NotifyFilters.LastWrite;
+                watcher.EnableRaisingEvents = true;//tex < allow subscribed event -v- to actually fire
+                watcher.Changed += new FileSystemEventHandler(OnToExtChanged);
+            } else {
+                BackgroundWorker serverInWorker = new BackgroundWorker();
+                serverInWorker.DoWork += new DoWorkEventHandler(serverIn_DoWork);
+                serverInWorker.RunWorkerAsync();
+
+                BackgroundWorker serverOutWorker = new BackgroundWorker();
+                serverOutWorker.DoWork += new DoWorkEventHandler(serverOut_DoWork);
+                serverOutWorker.RunWorkerAsync();
+            }
 
             DateTime currentDate = DateTime.Now;
             extSession = currentDate.Ticks;
 
-            WriteToMgsvFile();
+            WriteToMgsv();
 
             MainWindow mainWindow = new MainWindow();
             mainWindow.Show();
@@ -169,8 +195,7 @@ namespace IHExt
             ToMgsvCmd("ready");
         }
 
-        void AddTestMenuItems()
-        {
+        void AddTestMenuItems() {
             menuItems.Add("1:Menu line test: 1:SomeSetting");
             menuItems.Add("2:Menu line test longer: 14:Some much longer setting");
             menuItems.Add("3:Menu line test: 1:SomeSetting");
@@ -215,21 +240,123 @@ namespace IHExt
             settingItems.Add("12. Setting test");
         }
 
+        //tex mgsv_in pipe (IHExt out) process thread
+        //IN/SIDE: serverInName
+        void serverIn_DoWork(object sender, DoWorkEventArgs e) {
+            BackgroundWorker worker = (BackgroundWorker)sender;
+
+            using (var serverIn = new NamedPipeClientStream(".", serverInName, PipeDirection.Out)) {//tex: piped named from mgsv standpoint, so we pipe out to mgsv in, and visa versa
+                // Connect to the pipe or wait until the pipe is available.
+                Console.WriteLine("Attempting to connect to serverIn...");
+                serverIn.Connect();
+
+                Console.WriteLine("Connected to pipe.");
+                Console.WriteLine("There are currently {0} pipeIn server instances open.", serverIn.NumberOfServerInstances);
+
+                serverIn.ReadMode = PipeTransmissionMode.Message;
+
+                //ToMgsvCmd("0|IHExtStarted");//DEBUG
+                while (!worker.CancellationPending) {
+                    if (extToMgsvCmdQueue.Count() > 0) {
+                        StreamWriter sw = new StreamWriter(serverIn);
+                        //sw.Write("Sent from client.");//DEBUG
+                        string command;
+                        while (extToMgsvCmdQueue.TryDequeue(out command)) {
+                            sw.Write(command);
+                        }
+                        sw.Flush();
+                    }//if extToMgsvCmdQueue
+                }//while !worker.CancellationPending
+            }//using pipeIn
+        }//serverIn_DoWork
+
+        //tex mgsv_out pipe (IHExt in) process thread
+        //IN/SIDE: serverOutName
+        void serverOut_DoWork(object sender, DoWorkEventArgs e) {
+            BackgroundWorker worker = (BackgroundWorker)sender;
+
+            //tex should just be as above but with PipeDirection.In, but aparently transmissionmode.Message doesn't work unless it's .InOut, or using this constructor 
+            //https://stackoverflow.com/questions/32739224/c-sharp-unauthorizedaccessexception-when-enabling-messagemode-for-read-only-name
+            using (var serverOut = new NamedPipeClientStream(
+                    ".",
+                    serverOutName,
+                    PipeAccessRights.ReadData | PipeAccessRights.WriteAttributes,
+                    PipeOptions.None,
+                    System.Security.Principal.TokenImpersonationLevel.None,
+                    System.IO.HandleInheritability.None)) {
+                // Connect to the pipe or wait until the pipe is available.
+                Console.WriteLine("Attempting to connect to serverOut...");
+                serverOut.Connect();
+
+                Console.WriteLine("Connected to pipe.");
+                Console.WriteLine("There are currently {0} pipe server instances open.", serverOut.NumberOfServerInstances);
+
+                serverOut.ReadMode = PipeTransmissionMode.Message;
+
+                //ToMgsvCmd("IHExtStarted");//DEBUG
+                while (!worker.CancellationPending) {
+                    StreamReader sr = new StreamReader(serverOut);
+                    string message;
+                    //tex message mode doesn't seem to be working for mgsv_out
+                    //despite checking everything on both sides and despite it working for mgsv_in
+                    //was: while ((line = sr.ReadLine()) != null) {
+                    var peek = sr.Peek();//DEBUG
+                    while (sr.Peek() > 0) {
+                        //OFF see above
+                        //message = sr.ReadLine();
+                        //message = sr.ReadToEnd();
+
+                        StringBuilder stringBuilder = new StringBuilder();
+                        char c;
+                        while (true) {
+                            c = (char)sr.Read();
+                            if (c == -1) {//tex end of stream
+                                break;
+                            } else if (c == '\0') {
+                                break;
+                            } else {
+                               // if (c == '|') {
+                                    //tex Could start splitting string here I guess
+                               // } else {
+                                    stringBuilder.Append(c);
+                               // }
+                            }
+                        }//while true
+                        message = stringBuilder.ToString();
+
+                        //Console.WriteLine("Received from server: {0}", message);//DEBUG
+                        if (String.IsNullOrEmpty(message)) {
+                            continue;
+                        }
+
+                        char[] delimiters = { '|' };
+                        string[] args = message.Split(delimiters);
+                        string command = args[1];//tex args 0 is messageId
+                        if (command == null) {
+                            //TODO: warn
+                        } else {
+                            if (!commands.ContainsKey(command)) {
+                                Console.WriteLine("WARNING: Unrecogined command:" + command);
+                                //TODO: warn unrecognised command
+                            } else {
+                                commands[command](args);
+                            }
+                        }//if command
+                    }//while ReadLine
+                }//while !worker.CancellationPending
+            }//using pipeOut
+        }//serverOut_DoWork
+
         //tex on ih_toextcmds.txt changed
-        private void OnToExtChanged(object source, FileSystemEventArgs e)
-        {
+        private void OnToExtChanged(object source, FileSystemEventArgs e) {
             //Console.WriteLine("File: " + e.FullPath + " " + e.ChangeType);
 
-            using (FileStream fs = WaitForFile(this.toExtFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-            {
-                using (StreamReader sr = new StreamReader(fs))
-                {
+            using (FileStream fs = WaitForFile(this.toExtFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)) {
+                using (StreamReader sr = new StreamReader(fs)) {
                     string line;
                     int count = 0;
-                    while ((line = sr.ReadLine()) != null)
-                    {
-                        if (String.IsNullOrEmpty(line))
-                        {
+                    while ((line = sr.ReadLine()) != null) {
+                        if (String.IsNullOrEmpty(line)) {
                             continue;
                         }
 
@@ -237,39 +364,29 @@ namespace IHExt
                         char[] delimiters = { '|' };
                         string[] args = line.Split(delimiters);
                         int messageId;
-                        if (Int32.TryParse(args[0], out messageId))
-                        {
-                            if (count == 0)
-                            { //tex messageid of first line is mgsv session id 
-                                if (messageId != mgsvSession)
-                                {
+                        if (Int32.TryParse(args[0], out messageId)) {
+                            if (count == 0) { //tex messageid of first line is mgsv session id 
+                                if (messageId != mgsvSession) {
                                     Console.WriteLine("MGSV session changed");
                                     mgsvSession = messageId;
                                     //DEBUGNOW mgsvToExtComplete = 0;//tex reset
-                                    ToMgsvCmd("sessionchange");//tex a bit of nothing to get the extToMgsvComplete to update from the message, mgsv does likewise DEBUGNOW
+                                    ToMgsvCmd("sessionchange");//tex a bit of nothing to get the extToMgsvComplete to update from the message, mgsv does likewise
                                 }
 
                                 int arg = 0;
-                                if (Int32.TryParse(args[2], out arg))
-                                {
+                                if (Int32.TryParse(args[2], out arg)) {
                                     extToMgsvComplete = arg;
                                 }
-                            } else
-                            {
-                                if (messageId > mgsvToExtComplete)
-                                {//tex IHExt hasn't done this command yet yet
-                                    string command = args[1];
+                            } else {
+                                if (messageId > mgsvToExtComplete) {//tex IHExt hasn't done this command yet yet
+                                    string command = args[1];//tex args 0 is messageId
 
-                                    if (command == null)
-                                    {
+                                    if (command == null) {
                                         //TODO: warn
-                                    } else
-                                    {
-                                        if (!commands.ContainsKey(command))
-                                        {
+                                    } else {
+                                        if (!commands.ContainsKey(command)) {
                                             //TODO: warn unrecognised command
-                                        } else
-                                        {
+                                        } else {
                                             commands[command](args);
                                         }
                                     }
@@ -283,24 +400,21 @@ namespace IHExt
                 }// end streamreader
             }//end waitforfile
 
-            WriteToMgsvFile();
+            WriteToMgsv();
         }//end OnToExtChanged
 
-        private void OnGameProcess_Exited(object sender, System.EventArgs e)
-        {
+        private void OnGameProcess_Exited(object sender, System.EventArgs e) {
             gameProcess = null;
             this.Dispatcher.Invoke(() => {
                 Application.Current.Shutdown();
             });
         }
 
-        private void OnAppActivated(object sender, EventArgs e)
-        {
+        private void OnAppActivated(object sender, EventArgs e) {
 
         }
 
-        private void OnAppDeactivated(object sender, EventArgs e)
-        {
+        private void OnAppDeactivated(object sender, EventArgs e) {
             this.Dispatcher.Invoke(() => {
                 var mainWindow = (MainWindow)Application.Current.MainWindow;
 
@@ -309,38 +423,29 @@ namespace IHExt
             });
         }
 
-        private void OnFocusChange(object sender, AutomationFocusChangedEventArgs e)
-        {
+        private void OnFocusChange(object sender, AutomationFocusChangedEventArgs e) {
             this.Dispatcher.Invoke(() => {
                 //tex automation like to throw up lots of exceptions for some reason 
-                try
-                {
+                try {
                     var focusedHandle = new IntPtr(AutomationElement.FocusedElement.Current.NativeWindowHandle);
                     var mainWindowHandle = Process.GetCurrentProcess().MainWindowHandle;
-                    if (gameProcess != null)
-                    {
-                        if (gameProcess.MainWindowHandle == focusedHandle)
-                        {
+                    if (gameProcess != null) {
+                        if (gameProcess.MainWindowHandle == focusedHandle) {
                             //tex game has focus, so make sure ihext is
                             //TODO: could probably get all fancy and match to window position and size, assuming (cant remember) mgstpp has a windowed not fullscreen mode 
-                            if (Application.Current.MainWindow.WindowState == System.Windows.WindowState.Maximized)
-                            {
+                            if (Application.Current.MainWindow.WindowState == System.Windows.WindowState.Maximized) {
 
-                            } else
-                            {
+                            } else {
                                 //Application.Current.MainWindow.WindowState = System.Windows.WindowState.Maximized;
                                 ShowWindow(mainWindowHandle, SW_SHOWNOACTIVATE);
                             }
-                        } else
-                        {
-                            if (focusedHandle != mainWindowHandle)
-                            {
+                        } else {
+                            if (focusedHandle != mainWindowHandle) {
                                 //Application.Current.MainWindow.WindowState = System.Windows.WindowState.Minimized;
                             }
                         }
                     }
-                } catch (Exception ex)
-                {
+                } catch (Exception ex) {
 
                 }
             });
@@ -355,10 +460,8 @@ namespace IHExt
         private const int SW_SHOWNOACTIVATE = 4;
         private const int SW_SHOW = 5;
 
-        private void SetFocusToGame()
-        {
-            if (gameProcess != null)
-            {
+        private void SetFocusToGame() {
+            if (gameProcess != null) {
                 var hWnd = gameProcess.MainWindowHandle;
                 SetForegroundWindow(hWnd);
                 ShowWindow(hWnd, SW_SHOW);
@@ -366,31 +469,39 @@ namespace IHExt
         }
 
         //to mgsv commands
-        public void ToMgsvCmd(string cmd)
-        {
+        //IN/SIDE: usePipe
+        public void ToMgsvCmd(string cmd) {
             string message = extToMgsvCurrent.ToString() + "|" + cmd;
-            extToMgsvCmds.Add(extToMgsvCurrent, message);
+            if (!usePipe) {
+                extToMgsvCmds.Add(extToMgsvCurrent, message);
+            } else {
+                extToMgsvCmdQueue.Enqueue(message);
+            }
             extToMgsvCurrent++;
-            WriteToMgsvFile();
+            WriteToMgsv();
         }
 
-        private string GetSessionString()
-        {
+        private string GetSessionString() {
             return string.Format("{0}|cmdToExtCompletedIndex|{1}", extSession, mgsvToExtComplete);
         }
 
-        private void WriteToMgsvFile()
-        {
+        //IN/SIDE: usePipe
+        private void WriteToMgsv() {
+            if (!usePipe) {
+                WriteToMgsvFile();
+            } else {
+                //tex pipe thread processes extToMgsvCmdQueue itself
+            }
+        }
+
+        private void WriteToMgsvFile() {
             //tex lua/mgsv io "r" opens in exclusive/lock, so have to wait
-            using (FileStream fs = WaitForFile(this.toMgsvFilePath, FileMode.Truncate, FileAccess.Write, FileShare.None))
-            {
-                using (StreamWriter sw = new StreamWriter(fs))
-                {
+            using (FileStream fs = WaitForFile(this.toMgsvFilePath, FileMode.Truncate, FileAccess.Write, FileShare.None)) {
+                using (StreamWriter sw = new StreamWriter(fs)) {
                     string sessionString = GetSessionString();
-                    sw.WriteLine(sessionString); //tex always on first line, lets mgsv know what commands have been completed so it can cull them from the mgsvToExt file to stop if from infinitely growing
+                    sw.WriteLine(sessionString); //tex always on first line, lets mgsv know what commands have been completed so it can cull them from the mgsvToExt file to stop it from infinitely growing
                     //tex really from extToMgsvComplete+1, but the check for that uglifys code too much, and I can live with last complete command staying in the txt files
-                    for (int i = extToMgsvComplete; i < extToMgsvCurrent; i++)
-                    {
+                    for (int i = extToMgsvComplete; i < extToMgsvCurrent; i++) {
                         string line = extToMgsvCmds[i];
                         sw.WriteLine(line);
                     }
@@ -399,19 +510,14 @@ namespace IHExt
             }
         }
 
-        FileStream WaitForFile(string fullPath, FileMode mode, FileAccess access, FileShare share)
-        {
-            for (int numTries = 0; numTries < 10; numTries++)
-            {
+        FileStream WaitForFile(string fullPath, FileMode mode, FileAccess access, FileShare share) {
+            for (int numTries = 0; numTries < 10; numTries++) {
                 FileStream fs = null;
-                try
-                {
+                try {
                     fs = new FileStream(fullPath, mode, access, share);
                     return fs;
-                } catch (IOException)
-                {
-                    if (fs != null)
-                    {
+                } catch (IOException) {
+                    if (fs != null) {
                         fs.Dispose();
                     }
                     Thread.Sleep(50);
@@ -421,18 +527,15 @@ namespace IHExt
             return null;
         }
 
-        private UIElement GetUiElement(string name)
-        {
+        private UIElement GetUiElement(string name) {
             UIElement uiElement;
-            if (uiElements.TryGetValue(name, out uiElement))
-            {
+            if (uiElements.TryGetValue(name, out uiElement)) {
                 return uiElement;
             }
             return null;
         }
 
-        private UIElement FindCanvasElement(string name)
-        {
+        private UIElement FindCanvasElement(string name) {
             var mainWindow = (MainWindow)Application.Current.MainWindow;
             var canvas = mainWindow.MainCanvas;
 
@@ -442,22 +545,18 @@ namespace IHExt
         }
 
         //from mgsv commands
-        private void ShutdownApp(string[] args)
-        {
+        private void ShutdownApp(string[] args) {
             this.Dispatcher.Invoke(() => {
                 Application.Current.Shutdown();
             });
         }
 
-        private void TakeFocus(string[] args)
-        {
+        private void TakeFocus(string[] args) {
             this.Dispatcher.Invoke(() => {
                 var mainWindow = (MainWindow)Application.Current.MainWindow;
-                if (!mainWindow.IsActive)
-                {
+                if (!mainWindow.IsActive) {
                     mainWindow.Activate();
-                } else
-                {
+                } else {
                     /*Process[] gameProcesses = Process.GetProcessesByName(gameProcessName);
                     if (gameProcesses.Count() > 1)
                     {
@@ -467,58 +566,48 @@ namespace IHExt
         }
 
         //args bool visible
-        private void CanvasVisible(string[] args)
-        {
-            if (args.Count() < 1 + 1)
-            {
+        private void CanvasVisible(string[] args) {
+            if (args.Count() < 1 + 1) {
                 return;
             }
 
             bool visible;
-            if (!bool.TryParse(args[2], out visible))
-            {
+            if (!bool.TryParse(args[2], out visible)) {
                 return;
             }
 
             this.Dispatcher.Invoke(() => {
                 var mainWindow = (MainWindow)Application.Current.MainWindow;
                 var canvas = mainWindow.MainCanvas;
-                if (visible == false)
-                {
+                if (visible == false) {
                     canvas.Visibility = Visibility.Hidden;
-                } else
-                {
+                } else {
                     canvas.Visibility = Visibility.Visible;
                 }
             });
         }//end CanvasVisible
 
         //args string name, string xaml
-        private void CreateUiElement(string[] args)
-        {
-            if (args.Count() < 1 + 2)
-            {
+        private void CreateUiElement(string[] args) {
+            if (args.Count() < 1 + 2) {
                 return;
             }
 
             string name = args[2];
             string xamlStr = args[3];
-            if (name == null || xamlStr == null)
-            {
+            if (name == null || xamlStr == null) {
                 return;
             }
 
             UIElement existingElement;
-            if (uiElements.TryGetValue(name, out existingElement))
-            {
-                //DEBUGNOW TODO WARN
+            if (uiElements.TryGetValue(name, out existingElement)) {
+                Console.WriteLine($"WARNING: could not find element {name}");
                 return;
             }
 
 
             this.Dispatcher.Invoke(() => {
-                try
-                {
+                try {
                     var uiElement = (FrameworkElement)XamlReader.Parse(xamlStr);
                     uiElements[name] = uiElement;
 
@@ -527,33 +616,28 @@ namespace IHExt
                     canvas.RegisterName(uiElement.Name, uiElement);
                     canvas.Children.Add(uiElement);
                     canvas.ApplyTemplate();
-                } catch (Exception e)
-                {
-                    //DEBUGNOW TODO WARN
+                } catch (Exception e) {
+                    Console.WriteLine($"ERROR: Exception {e.Message} {e.Source}");
                     return;
                 }
             });//end invoke
         }//end CreateUiElement
 
         //args string name
-        private void RemoveUiElement(string[] args)
-        {
-            if (args.Count() < 1 + 1)
-            {
+        private void RemoveUiElement(string[] args) {
+            if (args.Count() < 1 + 1) {
                 return;
             }
 
             string name = args[2];
-            if (name == null)
-            {
+            if (name == null) {
                 return;
             }
 
             this.Dispatcher.Invoke(() => {
                 var uiElement = FindCanvasElement(name);
-                if (uiElement == null)
-                {
-                    //DEBUGNOW WARN
+                if (uiElement == null) {
+                    Console.WriteLine($"WARNING: could not find element {name}");
                     return;
                 }
 
@@ -567,47 +651,40 @@ namespace IHExt
         }//end RemoveUiElement
 
         //args string name, string content
-        private void SetContent(string[] args)
-        {
-            if (args.Count() < 1 + 2)
-            {
+        private void SetContent(string[] args) {
+            if (args.Count() < 1 + 2) {
                 return;
             }
 
             string name = args[2];
             string content = args[3];
-            if (name == null || content == null)
-            {
+            if (name == null || content == null) {
                 return;
             }
 
             //UIElement uiElement;
             //if (!uiElements.TryGetValue(name, out uiElement)) {
-            //    //DEBUGNOW TODO WARN
+            //    Console.WriteLine($"WARNING: could not find element {name}");
             //    //return;
             //}
 
             this.Dispatcher.Invoke(() => {
-                try
-                {
+                try {
                     UIElement uiElement = FindCanvasElement(name);
-                    if (uiElement == null)
-                    {
-                        //DEBUGNOW TODO WARN
+                    if (uiElement == null) {
+                        Console.WriteLine($"WARNING: could not find element {name}");
                         return;
                     }
 
                     ContentControl contentControl = uiElement as ContentControl;
-                    if (contentControl == null)
-                    {
-                        //DEBUGNOW TODO WARN
+                    if (contentControl == null) {
+                        Console.WriteLine($"WARNING: element {name} wrong type");
                         return;
                     }
 
                     contentControl.Content = content;
-                } catch (Exception e)
-                {
-                    //DEBUGNOW TODO WARN
+                } catch (Exception e) {
+                    Console.WriteLine($"ERROR: Exception {e.Message} {e.Source}");
                     return;
                 }
             });
@@ -615,49 +692,42 @@ namespace IHExt
 
         //for textblock
         //args string name, string content
-        private void SetText(string[] args)
-        {
-            if (args.Count() < 1 + 2)
-            {
+        private void SetText(string[] args) {
+            if (args.Count() < 1 + 2) {
                 return;
             }
 
             string name = args[2];
             string content = args[3];
-            if (name == null || content == null)
-            {
+            if (name == null || content == null) {
                 return;
             }
 
             //UIElement uiElement;
             //if (!uiElements.TryGetValue(name, out uiElement)) {
-            //    //DEBUGNOW TODO WARN
+            //    Console.WriteLine($"WARNING: could not find element {name}");
             //    //return;
             //}
 
             this.Dispatcher.Invoke(() => {
-                try
-                {
+                try {
                     UIElement uiElement = FindCanvasElement(name);
-                    if (uiElement == null)
-                    {
-                        //DEBUGNOW TODO WARN
+                    if (uiElement == null) {
+                        Console.WriteLine($"WARNING: could not find element {name}");
                         return;
                     }
 
                     TextBlock contentControl = uiElement as TextBlock;
-                    if (contentControl == null)
-                    {
-                        //DEBUGNOW TODO WARN
+                    if (contentControl == null) {
+                        Console.WriteLine($"WARNING: element {name} wrong type");
                         return;
                     }
 
-                    content.Replace(@"\n", "&#10;");//DEBUGNOW
+                    content.Replace(@"\n", "&#10;");//DEBUGNOW DOCUMENT what am I doing here?
 
                     contentControl.Text = content;
-                } catch (Exception e)
-                {
-                    //DEBUGNOW TODO WARN
+                } catch (Exception e) {
+                    Console.WriteLine($"ERROR: Exception {e.Message} {e.Source}");
                     return;
                 }
             });
@@ -665,101 +735,84 @@ namespace IHExt
 
         //for textbox
         //args string name, string content
-        private void SetTextBox(string[] args)
-        {
-            if (args.Count() < 1 + 2)
-            {
+        private void SetTextBox(string[] args) {
+            if (args.Count() < 1 + 2) {
                 return;
             }
 
             string name = args[2];
             string content = args[3];
-            if (name == null || content == null)
-            {
+            if (name == null || content == null) {
                 return;
             }
 
             //UIElement uiElement;
             //if (!uiElements.TryGetValue(name, out uiElement)) {
-            //    //DEBUGNOW TODO WARN
+            //    Console.WriteLine($"WARNING: could not find element {name}");
             //    //return;
             //}
 
             this.Dispatcher.Invoke(() => {
-                try
-                {
+                try {
                     UIElement uiElement = FindCanvasElement(name);
-                    if (uiElement == null)
-                    {
-                        //DEBUGNOW TODO WARN
+                    if (uiElement == null) {
+                        Console.WriteLine($"WARNING: could not find element {name}");
                         return;
                     }
 
                     TextBox contentControl = uiElement as TextBox;
-                    if (contentControl == null)
-                    {
-                        //DEBUGNOW TODO WARN
+                    if (contentControl == null) {
+                        Console.WriteLine($"WARNING: element {name} wrong type");
                         return;
                     }
 
-                    content.Replace(@"\n", "&#10;");//DEBUGNOW
+                    content.Replace(@"\n", "&#10;");//DEBUGNOW DOCUMENT what am I doing here?
 
                     contentControl.Text = content;
-                } catch (Exception e)
-                {
-                    //DEBUGNOW TODO WARN
+                } catch (Exception e) {
+                    Console.WriteLine($"ERROR: Exception {e.Message} {e.Source}");
                     return;
                 }
             });
         }//end SetText
 
         //args string name, bool visible
-        private void UiElementVisible(string[] args)
-        {
-            if (args.Count() < 1 + 1)
-            {
+        private void UiElementVisible(string[] args) {
+            if (args.Count() < 1 + 1) {
                 return;
             }
 
             string name = args[2];
-            if (name == null)
-            {
+            if (name == null) {
                 return;
             }
 
             int visible;
-            if (!int.TryParse(args[3], out visible))
-            {
+            if (!int.TryParse(args[3], out visible)) {
                 return;
             }
 
             this.Dispatcher.Invoke(() => {
                 var uiElement = FindCanvasElement(name);
-                if (uiElement == null)
-                {
+                if (uiElement == null) {
                     return;
                 }
 
-                if (visible == 0)
-                {
+                if (visible == 0) {
                     uiElement.Visibility = Visibility.Hidden;
-                } else
-                {
+                } else {
                     uiElement.Visibility = Visibility.Visible;
                 }
             });
         }//end UiElementVisible
 
-        private void ClearTable(string[] args)
-        {
-            if (args.Count() < 1 + 1)
-            {
+        private void ClearTable(string[] args) {
+            if (args.Count() < 1 + 1) {
                 return;
             }
             //TODO dict of tables
             string name = args[2];
-            if (name == null)
-            {
+            if (name == null) {
                 return;
             }
             this.Dispatcher.Invoke(() => {
@@ -773,21 +826,17 @@ namespace IHExt
             });
         }
 
-        private void AddToTable(string[] args)
-        {
-            if (args.Count() < 1 + 2)
-            {
+        private void AddToTable(string[] args) {
+            if (args.Count() < 1 + 2) {
                 return;
             }
             //TODO dict of tables
             string name = args[2];
-            if (name == null)
-            {
+            if (name == null) {
                 return;
             }
             string itemString = args[3];
-            if (itemString == null)
-            {
+            if (itemString == null) {
                 return;
             }
             this.Dispatcher.Invoke(() => {
@@ -801,60 +850,49 @@ namespace IHExt
             });
         }
 
-        private void UpdateTable(string[] args)
-        {
-            if (args.Count() < 1 + 2)
-            {
+        private void UpdateTable(string[] args) {
+            if (args.Count() < 1 + 2) {
                 return;
             }
             //TODO dict of tables
             string name = args[2];
-            if (name == null)
-            {
+            if (name == null) {
                 return;
             }
             int itemIndex;
-            if (!int.TryParse(args[3], out itemIndex))
-            {
+            if (!int.TryParse(args[3], out itemIndex)) {
                 return;
             }
             string itemString = args[4];
-            if (itemString == null)
-            {
+            if (itemString == null) {
                 return;
             }
             this.Dispatcher.Invoke(() => {
-                if (itemIndex >= 0 && itemIndex < menuItems.Count())
-                {
+                if (itemIndex >= 0 && itemIndex < menuItems.Count()) {
                     menuItems[itemIndex] = itemString;
                 }
             });
         }
 
-        private void SelectItem(string[] args)
-        {
-            if (args.Count() < 1 + 2)
-            {
+        private void SelectItem(string[] args) {
+            if (args.Count() < 1 + 2) {
                 return;
             }
             //TODO dict of tables
             string name = args[2];
-            if (name == null)
-            {
+            if (name == null) {
                 return;
             }
 
             int selectedIndex;
-            if (!int.TryParse(args[3], out selectedIndex))
-            {
+            if (!int.TryParse(args[3], out selectedIndex)) {
                 return;
             }
 
             this.Dispatcher.Invoke(() => {
                 var mainWindow = (MainWindow)Application.Current.MainWindow;
 
-                if (selectedIndex >= 0 && selectedIndex < menuItems.Count())
-                {
+                if (selectedIndex >= 0 && selectedIndex < menuItems.Count()) {
                     mainWindow.menuItems.SelectionChanged -= mainWindow.ListBox_OnSelectionChanged; //KLUDGE SelectionChanged event fires on all changes, I just want on user changes
 
                     mainWindow.menuItems.SelectedIndex = selectedIndex;
@@ -865,16 +903,13 @@ namespace IHExt
             });
         }
 
-        private void ClearCombo(string[] args)
-        {
-            if (args.Count() < 1 + 1)
-            {
+        private void ClearCombo(string[] args) {
+            if (args.Count() < 1 + 1) {
                 return;
             }
             //TODO dict of tables
             string name = args[2];
-            if (name == null)
-            {
+            if (name == null) {
                 return;
             }
             this.Dispatcher.Invoke(() => {
@@ -888,21 +923,17 @@ namespace IHExt
             });
         }
 
-        private void AddToCombo(string[] args)
-        {
-            if (args.Count() < 1 + 2)
-            {
+        private void AddToCombo(string[] args) {
+            if (args.Count() < 1 + 2) {
                 return;
             }
             //TODO dict of tables
             string name = args[2];
-            if (name == null)
-            {
+            if (name == null) {
                 return;
             }
             string itemString = args[3];
-            if (itemString == null)
-            {
+            if (itemString == null) {
                 return;
             }
             this.Dispatcher.Invoke(() => {
@@ -916,30 +947,25 @@ namespace IHExt
             });
         }
 
-        private void SelectCombo(string[] args)
-        {
-            if (args.Count() < 1 + 2)
-            {
+        private void SelectCombo(string[] args) {
+            if (args.Count() < 1 + 2) {
                 return;
             }
             //TODO dict of tables
             string name = args[2];
-            if (name == null)
-            {
+            if (name == null) {
                 return;
             }
 
             int selectedIndex;
-            if (!int.TryParse(args[3], out selectedIndex))
-            {
+            if (!int.TryParse(args[3], out selectedIndex)) {
                 return;
             }
 
             this.Dispatcher.Invoke(() => {
                 var mainWindow = (MainWindow)Application.Current.MainWindow;
 
-                if (selectedIndex >= 0 && selectedIndex < menuItems.Count())
-                {
+                if (selectedIndex >= 0 && selectedIndex < menuItems.Count()) {
                     mainWindow.menuSetting.SelectionChanged -= mainWindow.ComboBox_OnSelectionChanged; //KLUDGE SelectionChanged event fires on all changes, I just want on user changes
 
                     mainWindow.menuSetting.SelectedIndex = selectedIndex;
@@ -951,40 +977,33 @@ namespace IHExt
 
         //for textbox
         //args string name
-        private void SelectAllText(string[] args)
-        {
-            if (args.Count() < 1 + 1)
-            {
+        private void SelectAllText(string[] args) {
+            if (args.Count() < 1 + 1) {
                 return;
             }
 
             string name = args[2];
-            if (name == null )
-            {
+            if (name == null) {
                 return;
             }
 
             this.Dispatcher.Invoke(() => {
-                try
-                {
+                try {
                     UIElement uiElement = FindCanvasElement(name);
-                    if (uiElement == null)
-                    {
-                        //DEBUGNOW TODO WARN
+                    if (uiElement == null) {
+                        Console.WriteLine($"WARNING: could not find element {name}");
                         return;
                     }
 
                     TextBox contentControl = uiElement as TextBox;
-                    if (contentControl == null)
-                    {
-                        //DEBUGNOW TODO WARN
+                    if (contentControl == null) {
+                        Console.WriteLine($"WARNING: element {name} wrong type");
                         return;
                     }
 
                     contentControl.SelectAll();
-                } catch (Exception e)
-                {
-                    //DEBUGNOW TODO WARN
+                } catch (Exception e) {
+                    Console.WriteLine($"ERROR: Exception {e.Message} {e.Source}");
                     return;
                 }
             });
