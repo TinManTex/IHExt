@@ -40,7 +40,7 @@ namespace IHExt {
 
         private int extToMgsvCurrent = 0;//tex current/max, last command to be written out
         private int extToMgsvComplete = 0;//tex min/confirmed executed by mgsv, only commands above this should be written out
-        private int mgsvToExtComplete = 0;//tex min/confimed executed by ext 
+        private int mgsvToExtComplete = 0;//tex min/confimed executed by ext
 
         private long extSession = 0;
         private long mgsvSession = 0;
@@ -55,10 +55,10 @@ namespace IHExt {
 
         //
         Process gameProcess = null;
-        AutomationFocusChangedEventHandler focusHandler = null;
+        //AutomationFocusChangedEventHandler focusHandler = null;
 
         private void Application_Startup(object sender, StartupEventArgs e) {
-            Debugger.Launch();//DEBUGNOW
+            //Debugger.Launch();//DEBUGNOW
             Console.WriteLine("IHExt");//tex: To see console output change Project properties -> Application -> Output Type to Console Application
 
             bool exitWithGame = true;//DEBUG
@@ -103,13 +103,13 @@ namespace IHExt {
             bool foundGameDir = true;
 
             if (!Directory.Exists(gameDir)) {
-                Console.WriteLine("Could not find gameDir: {0}", gameDir);
+                Console.WriteLine($"Could not find gameDir: {gameDir}");
                 Console.WriteLine("Please launch this program via Infinite Heaven.");
                 Console.WriteLine("Or set the -gameDir arg correctly when launching this program.");
                 foundGameDir = false;
             }
             if (!usePipe && !File.Exists(toExtFilePath)) {
-                Console.WriteLine("Could not find fromMGSVFile: {0}", toExtFilePath);
+                Console.WriteLine($"Could not find fromMGSVFile: {toExtFilePath}");
                 foundGameDir = false;
             }
 
@@ -192,7 +192,7 @@ namespace IHExt {
 
             SetFocusToGame();
 
-            ToMgsvCmd("ready");
+            ToMgsvCmd($"extSession|{extSession}");
         }
 
         void AddTestMenuItems() {
@@ -256,12 +256,13 @@ namespace IHExt {
                 serverIn.ReadMode = PipeTransmissionMode.Message;
 
                 //ToMgsvCmd("0|IHExtStarted");//DEBUG
+                StreamWriter sw = new StreamWriter(serverIn);
                 while (!worker.CancellationPending) {
+                    //sw.Write("Sent from client.");//DEBUG
                     if (extToMgsvCmdQueue.Count() > 0) {
-                        StreamWriter sw = new StreamWriter(serverIn);
-                        //sw.Write("Sent from client.");//DEBUG
                         string command;
                         while (extToMgsvCmdQueue.TryDequeue(out command)) {
+                            Console.WriteLine("Client write: " + command);//DEBUGNOW
                             sw.Write(command);
                         }
                         sw.Flush();
@@ -272,6 +273,7 @@ namespace IHExt {
 
         //tex mgsv_out pipe (IHExt in) process thread
         //IN/SIDE: serverOutName
+        //IN-OUT/SIDE: mgsvToExtComplete
         void serverOut_DoWork(object sender, DoWorkEventArgs e) {
             BackgroundWorker worker = (BackgroundWorker)sender;
 
@@ -295,8 +297,9 @@ namespace IHExt {
 
                 //ToMgsvCmd("IHExtStarted");//DEBUG
                 while (!worker.CancellationPending) {
-                    StreamReader sr = new StreamReader(serverOut);
+                    StreamReader sr = new StreamReader(serverOut);//tex DEBUGNOW: will hang if ouside the loop
                     string message;
+                    int count = 0;
                     //tex message mode doesn't seem to be working for mgsv_out
                     //despite checking everything on both sides and despite it working for mgsv_in
                     //was: while ((line = sr.ReadLine()) != null) {
@@ -305,47 +308,39 @@ namespace IHExt {
                         //OFF see above
                         //message = sr.ReadLine();
                         //message = sr.ReadToEnd();
+                        message = ReadByChar(sr);
 
-                        StringBuilder stringBuilder = new StringBuilder();
-                        char c;
-                        while (true) {
-                            c = (char)sr.Read();
-                            if (c == -1) {//tex end of stream
-                                break;
-                            } else if (c == '\0') {
-                                break;
-                            } else {
-                               // if (c == '|') {
-                                    //tex Could start splitting string here I guess
-                               // } else {
-                                    stringBuilder.Append(c);
-                               // }
-                            }
-                        }//while true
-                        message = stringBuilder.ToString();
-
-                        //Console.WriteLine("Received from server: {0}", message);//DEBUG
+                        //Console.WriteLine("Received from server: {message}");//DEBUG
                         if (String.IsNullOrEmpty(message)) {
                             continue;
                         }
 
-                        char[] delimiters = { '|' };
-                        string[] args = message.Split(delimiters);
-                        string command = args[1];//tex args 0 is messageId
-                        if (command == null) {
-                            //TODO: warn
-                        } else {
-                            if (!commands.ContainsKey(command)) {
-                                Console.WriteLine("WARNING: Unrecogined command:" + command);
-                                //TODO: warn unrecognised command
-                            } else {
-                                commands[command](args);
-                            }
-                        }//if command
-                    }//while ReadLine
+                        ProcessCommand(message, count);
+                        count++;
+                    }//while Read
                 }//while !worker.CancellationPending
             }//using pipeOut
         }//serverOut_DoWork
+
+        private static string ReadByChar(StreamReader sr) {
+            StringBuilder stringBuilder = new StringBuilder();
+            char c;
+            while (true) {
+                c = (char)sr.Read();
+                if (c == -1) {//tex end of stream
+                    break;
+                } else if (c == '\0') {
+                    break;
+                } else {
+                    // if (c == '|') {
+                    //tex Could start splitting string here I guess
+                    // } else {
+                    stringBuilder.Append(c);
+                    // }
+                }
+            }//while true
+            return stringBuilder.ToString();
+        }
 
         //tex on ih_toextcmds.txt changed
         private void OnToExtChanged(object source, FileSystemEventArgs e) {
@@ -353,48 +348,15 @@ namespace IHExt {
 
             using (FileStream fs = WaitForFile(this.toExtFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)) {
                 using (StreamReader sr = new StreamReader(fs)) {
-                    string line;
+                    string message;
                     int count = 0;
-                    while ((line = sr.ReadLine()) != null) {
-                        if (String.IsNullOrEmpty(line)) {
+                    while ((message = sr.ReadLine()) != null) {
+                        if (String.IsNullOrEmpty(message)) {
                             continue;
                         }
 
                         //Console.WriteLine(line);//DEBUG
-                        char[] delimiters = { '|' };
-                        string[] args = line.Split(delimiters);
-                        int messageId;
-                        if (Int32.TryParse(args[0], out messageId)) {
-                            if (count == 0) { //tex messageid of first line is mgsv session id 
-                                if (messageId != mgsvSession) {
-                                    Console.WriteLine("MGSV session changed");
-                                    mgsvSession = messageId;
-                                    //DEBUGNOW mgsvToExtComplete = 0;//tex reset
-                                    ToMgsvCmd("sessionchange");//tex a bit of nothing to get the extToMgsvComplete to update from the message, mgsv does likewise
-                                }
-
-                                int arg = 0;
-                                if (Int32.TryParse(args[2], out arg)) {
-                                    extToMgsvComplete = arg;
-                                }
-                            } else {
-                                if (messageId > mgsvToExtComplete) {//tex IHExt hasn't done this command yet yet
-                                    string command = args[1];//tex args 0 is messageId
-
-                                    if (command == null) {
-                                        //TODO: warn
-                                    } else {
-                                        if (!commands.ContainsKey(command)) {
-                                            //TODO: warn unrecognised command
-                                        } else {
-                                            commands[command](args);
-                                        }
-                                    }
-
-                                    mgsvToExtComplete = messageId;
-                                }
-                            }
-                        }
+                        ProcessCommand(message, count);
                         count++;
                     }//end while readline
                 }// end streamreader
@@ -402,6 +364,46 @@ namespace IHExt {
 
             WriteToMgsv();
         }//end OnToExtChanged
+
+        //OUT/SIDE: mgsvToExtComplete
+        private void ProcessCommand(string message, int count) {
+            char[] delimiters = { '|' };
+            string[] args = message.Split(delimiters);
+            int messageId;
+
+            if (Int32.TryParse(args[0], out messageId)) {
+                //tex: first line of text ipc has the index of the completed commands of the opposite stream
+                //can't just put it in a command as that would just create a loop of them updating
+                if (count == 0 && !usePipe) { 
+                    //tex messageid of first line is mgsv session id 
+                    if (messageId != mgsvSession) {//DEBUGNOW move to a specfic command from mgsv
+                        Console.WriteLine("MGSV session changed");
+                        mgsvSession = messageId;
+                        ToMgsvCmd("sessionchange");//tex a bit of nothing to get the extToMgsvComplete to update from the message, mgsv does likewise
+                    }
+
+                    int arg = 0;
+                    if (Int32.TryParse(args[2], out arg)) {
+                        extToMgsvComplete = arg;
+                    }
+                } else {
+                   if (usePipe || messageId > mgsvToExtComplete) {//tex IHExt hasn't done this command yet yet 
+                        if (args.Length < 1) {
+                            Console.WriteLine("WARNING: args.Length < 1");
+                        } else {
+                            string command = args[1];//tex args 0 is messageId
+                            if (!commands.ContainsKey(command)) {
+                                Console.WriteLine("WARNING: Unrecogined command:" + command);
+                            } else {
+                                commands[command](args);//tex call command function
+                            }
+                        }//if args
+
+                        mgsvToExtComplete = messageId;
+                  }//if > mgsvToExtComplete
+                }//if count
+            }// parse messageId
+        }//ProcessCommand
 
         private void OnGameProcess_Exited(object sender, System.EventArgs e) {
             gameProcess = null;
@@ -446,7 +448,7 @@ namespace IHExt {
                         }
                     }
                 } catch (Exception ex) {
-
+                    Console.WriteLine($"OnFocusChange exception: {ex.Message} {ex.Source}");
                 }
             });
         }
@@ -481,10 +483,6 @@ namespace IHExt {
             WriteToMgsv();
         }
 
-        private string GetSessionString() {
-            return string.Format("{0}|cmdToExtCompletedIndex|{1}", extSession, mgsvToExtComplete);
-        }
-
         //IN/SIDE: usePipe
         private void WriteToMgsv() {
             if (!usePipe) {
@@ -492,14 +490,18 @@ namespace IHExt {
             } else {
                 //tex pipe thread processes extToMgsvCmdQueue itself
             }
-        }
+        }//WriteToMgsv
 
+        //IN/SIDE: extToMgsvCurrent
         private void WriteToMgsvFile() {
             //tex lua/mgsv io "r" opens in exclusive/lock, so have to wait
             using (FileStream fs = WaitForFile(this.toMgsvFilePath, FileMode.Truncate, FileAccess.Write, FileShare.None)) {
                 using (StreamWriter sw = new StreamWriter(fs)) {
-                    string sessionString = GetSessionString();
-                    sw.WriteLine(sessionString); //tex always on first line, lets mgsv know what commands have been completed so it can cull them from the mgsvToExt file to stop it from infinitely growing
+                    //tex always on first line, lets mgsv know what commands have been completed so it can cull them from the mgsvToExt file to stop it from infinitely growing
+                    //can't just put it in a command as that would just create a loop of them updating
+                    //extSession not really needed as that is updated via it's own command
+                    string cmdToExtCompleted = string.Format($"{extSession}|cmdToExtCompletedIndex|{mgsvToExtComplete}");
+                    sw.WriteLine(cmdToExtCompleted);
                     //tex really from extToMgsvComplete+1, but the check for that uglifys code too much, and I can live with last complete command staying in the txt files
                     for (int i = extToMgsvComplete; i < extToMgsvCurrent; i++) {
                         string line = extToMgsvCmds[i];
@@ -508,7 +510,7 @@ namespace IHExt {
                     sw.Flush();
                 }
             }
-        }
+        }//WriteToMgsvFile
 
         FileStream WaitForFile(string fullPath, FileMode mode, FileAccess access, FileShare share) {
             for (int numTries = 0; numTries < 10; numTries++) {
@@ -544,7 +546,12 @@ namespace IHExt {
             return uiElement;
         }
 
-        //from mgsv commands
+        //tex from mgsv commands
+        //tex all commands take in single param and array of args
+        //args[0] = messageId(not really useful for a command)
+        //args[1] = command name(ditto)
+        //args[2 +] = args as string
+
         private void ShutdownApp(string[] args) {
             this.Dispatcher.Invoke(() => {
                 Application.Current.Shutdown();
