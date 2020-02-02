@@ -256,7 +256,7 @@ namespace IHExt {
                 serverIn.ReadMode = PipeTransmissionMode.Message;
 
                 //ToMgsvCmd("0|IHExtStarted");//DEBUG
-                StreamWriter sw = new StreamWriter(serverIn);
+                StreamWriter sw = new StreamWriter(serverIn, Encoding.UTF8);
                 while (!worker.CancellationPending) {
                     //sw.Write("Sent from client.");//DEBUG
                     if (extToMgsvCmdQueue.Count() > 0) {
@@ -297,7 +297,7 @@ namespace IHExt {
 
                 //ToMgsvCmd("IHExtStarted");//DEBUG
                 while (!worker.CancellationPending) {
-                    StreamReader sr = new StreamReader(serverOut);//tex DEBUGNOW: will hang if ouside the loop
+                    StreamReader sr = new StreamReader(serverOut, Encoding.UTF8);//tex DEBUGNOW: will hang if ouside the loop
                     string message;
                     int count = 0;
                     //tex message mode doesn't seem to be working for mgsv_out
