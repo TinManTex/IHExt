@@ -140,23 +140,7 @@ namespace IHExt {
                 //Automation.AddAutomationFocusChangedEventHandler(focusHandler);
             }
 
-            commands.Add("Shutdown", ShutdownApp);
-            commands.Add("TakeFocus", TakeFocus);
-            commands.Add("CanvasVisible", CanvasVisible);
-            commands.Add("CreateUiElement", CreateUiElement);
-            commands.Add("RemoveUiElement", RemoveUiElement);
-            commands.Add("SetContent", SetContent);
-            commands.Add("SetText", SetText);
-            commands.Add("SetTextBox", SetTextBox);
-            commands.Add("UiElementVisible", UiElementVisible);
-            commands.Add("ClearTable", ClearTable);
-            commands.Add("AddToTable", AddToTable);
-            commands.Add("UpdateTable", UpdateTable);
-            commands.Add("SelectItem", SelectItem);
-            commands.Add("ClearCombo", ClearCombo);
-            commands.Add("AddToCombo", AddToCombo);
-            commands.Add("SelectCombo", SelectCombo);
-            commands.Add("SelectAllText", SelectAllText);
+            AddCommands(commands);
 
             //tex legacy IH ipc via messages in a txt file
             if (!usePipe) {
@@ -194,6 +178,27 @@ namespace IHExt {
 
             ToMgsvCmd($"extSession|{extSession}");
         }
+
+        //IN/SIDE: Function pointers
+        private void AddCommands(ref Dictionary<string, Action<string[]>> commands) {
+            commands.Add("Shutdown", ShutdownApp);
+            commands.Add("TakeFocus", TakeFocus);
+            commands.Add("CanvasVisible", CanvasVisible);
+            commands.Add("CreateUiElement", CreateUiElement);
+            commands.Add("RemoveUiElement", RemoveUiElement);
+            commands.Add("SetContent", SetContent);
+            commands.Add("SetText", SetText);
+            commands.Add("SetTextBox", SetTextBox);
+            commands.Add("UiElementVisible", UiElementVisible);
+            commands.Add("ClearTable", ClearTable);
+            commands.Add("AddToTable", AddToTable);
+            commands.Add("UpdateTable", UpdateTable);
+            commands.Add("SelectItem", SelectItem);
+            commands.Add("ClearCombo", ClearCombo);
+            commands.Add("AddToCombo", AddToCombo);
+            commands.Add("SelectCombo", SelectCombo);
+            commands.Add("SelectAllText", SelectAllText);
+        }//AddCommands
 
         void AddTestMenuItems() {
             menuItems.Add("1:Menu line test: 1:SomeSetting");
@@ -238,7 +243,7 @@ namespace IHExt {
             settingItems.Add("10. Setting test");
             settingItems.Add("11. Setting test");
             settingItems.Add("12. Setting test");
-        }
+        }//AddTestMenuItems
 
         //tex mgsv_in pipe (IHExt out) process thread
         //IN/SIDE: serverInName
@@ -288,7 +293,7 @@ namespace IHExt {
             //        System.Security.Principal.TokenImpersonationLevel.None,
             //        System.IO.HandleInheritability.None)) {
             //tex so using this instead of above, where pipedirection is InOut instead of In, the gotcha is server must be InOut/DUPLEX as well
-            //GOTCHA: which also theoretically means a client could stall the pipe if it writes to it
+            //GOTCHA: which also theoretically means a client could stall the pipe if it writes to it as IHHook only treats is as out only.
             using (var serverOut = new NamedPipeClientStream(".", serverOutName, PipeDirection.InOut)) {
                 // Connect to the pipe or wait until the pipe is available.
                 Console.WriteLine("Attempting to connect to serverOut...");
