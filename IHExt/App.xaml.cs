@@ -140,7 +140,7 @@ namespace IHExt {
                 //Automation.AddAutomationFocusChangedEventHandler(focusHandler);
             }
 
-            AddCommands(commands);
+            AddCommands(ref commands);
 
             //tex legacy IH ipc via messages in a txt file
             if (!usePipe) {
