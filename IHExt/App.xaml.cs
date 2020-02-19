@@ -277,15 +277,19 @@ namespace IHExt {
         void serverOut_DoWork(object sender, DoWorkEventArgs e) {
             BackgroundWorker worker = (BackgroundWorker)sender;
 
-            //tex should just be as above but with PipeDirection.In, but aparently transmissionmode.Message doesn't work unless it's .InOut, or using this constructor 
+            //tex there's an issue with client/in pipes not working in message mode
             //https://stackoverflow.com/questions/32739224/c-sharp-unauthorizedaccessexception-when-enabling-messagemode-for-read-only-name
-            using (var serverOut = new NamedPipeClientStream(
-                    ".",
-                    serverOutName,
-                    PipeAccessRights.ReadData | PipeAccessRights.WriteAttributes,
-                    PipeOptions.None,
-                    System.Security.Principal.TokenImpersonationLevel.None,
-                    System.IO.HandleInheritability.None)) {
+            //The solution below lets you keep the server as out only (OUTBOUND in c++), but this constructor for NamedPipeClientStream isn't available in .net standard (thus not unity)
+            //using (var serverOut = new NamedPipeClientStream(
+            //        ".",
+            //        serverOutName,
+            //        PipeAccessRights.ReadData | PipeAccessRights.WriteAttributes,
+            //        PipeOptions.None,
+            //        System.Security.Principal.TokenImpersonationLevel.None,
+            //        System.IO.HandleInheritability.None)) {
+            //tex so using this instead of above, where pipedirection is InOut instead of In, the gotcha is server must be InOut/DUPLEX as well
+            //GOTCHA: which also theoretically means a client could stall the pipe if it writes to it
+            using (var serverOut = new NamedPipeClientStream(".", serverOutName, PipeDirection.InOut)) {
                 // Connect to the pipe or wait until the pipe is available.
                 Console.WriteLine("Attempting to connect to serverOut...");
                 serverOut.Connect();
@@ -374,7 +378,7 @@ namespace IHExt {
             if (Int32.TryParse(args[0], out messageId)) {
                 //tex: first line of text ipc has the index of the completed commands of the opposite stream
                 //can't just put it in a command as that would just create a loop of them updating
-                if (count == 0 && !usePipe) { 
+                if (count == 0 && !usePipe) {
                     //tex messageid of first line is mgsv session id 
                     if (messageId != mgsvSession) {//DEBUGNOW move to a specfic command from mgsv
                         Console.WriteLine("MGSV session changed");
@@ -387,7 +391,7 @@ namespace IHExt {
                         extToMgsvComplete = arg;
                     }
                 } else {
-                   if (usePipe || messageId > mgsvToExtComplete) {//tex IHExt hasn't done this command yet yet 
+                    if (usePipe || messageId > mgsvToExtComplete) {//tex IHExt hasn't done this command yet yet 
                         if (args.Length < 1) {
                             Console.WriteLine("WARNING: args.Length < 1");
                         } else {
@@ -400,7 +404,7 @@ namespace IHExt {
                         }//if args
 
                         mgsvToExtComplete = messageId;
-                  }//if > mgsvToExtComplete
+                    }//if > mgsvToExtComplete
                 }//if count
             }// parse messageId
         }//ProcessCommand
