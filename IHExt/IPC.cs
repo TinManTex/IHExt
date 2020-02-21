@@ -23,14 +23,23 @@ namespace IHExt {
 
         private Dictionary<string, Action<string[]>> commands = new Dictionary<string, Action<string[]>>();
 
+        //LEGACY: IHExt text IPC
         private int extToMgsvCurrent = 0;//tex current/max, last command to be written out
         private int extToMgsvComplete = 0;//tex min/confirmed executed by mgsv, only commands above this should be written out
         private int mgsvToExtComplete = 0;//tex min/confimed executed by ext
 
+
         private long extSession = 0;
         private long mgsvSession = 0;
 
-        public IPC(bool _usePipe, string _serverInName, string _serverOutName, string _toExtFilePath = null, string _toMgsvFilePath = null, long _extSession = 0) {
+        BackgroundWorker serverInWorker = null;
+        BackgroundWorker serverOutWorker = null;
+
+        public IPC(long _extSession) {
+            extSession = _extSession;
+        }//IPC() ctor
+        
+        public IPC(long _extSession = 0, bool _usePipe = true, string _serverInName = null, string _serverOutName = null, string _toExtFilePath = null, string _toMgsvFilePath = null) {
             usePipe = _usePipe;
             extSession = _extSession;
 
@@ -50,15 +59,26 @@ namespace IHExt {
             }
         }//IPC() ctor
 
+        ~IPC() {
+            ShutdownPipeThreads();
+        }//IPC dtor
+
         public void StartPipeThreads() {
-            BackgroundWorker serverInWorker = new BackgroundWorker();
+            serverInWorker = new BackgroundWorker();
             serverInWorker.DoWork += new DoWorkEventHandler(serverIn_DoWork);
+            serverInWorker.WorkerSupportsCancellation = true;
             serverInWorker.RunWorkerAsync();
 
-            BackgroundWorker serverOutWorker = new BackgroundWorker();
+            serverOutWorker = new BackgroundWorker();
             serverOutWorker.DoWork += new DoWorkEventHandler(serverOut_DoWork);
+            serverOutWorker.WorkerSupportsCancellation = true;
             serverOutWorker.RunWorkerAsync();
         }//StartPipeThreads
+
+        public void ShutdownPipeThreads() {
+            serverInWorker.CancelAsync();
+            serverOutWorker.CancelAsync();
+        }//ShutdownPipeThreads
 
         //tex mgsv_in pipe (IHExt out) process thread
         //IN/SIDE: serverInName
@@ -78,10 +98,15 @@ namespace IHExt {
                 //ToMgsvCmd("0|IHExtStarted");//DEBUG
                 StreamWriter sw = new StreamWriter(serverIn, Encoding.UTF8);
                 while (!worker.CancellationPending) {
+                    //Console.WriteLine("serverIn_DoWork");//DEBUG
                     //sw.Write("Sent from client.");//DEBUG
                     if (extToMgsvCmdQueue.Count() > 0) {
                         string command;
                         while (extToMgsvCmdQueue.TryDequeue(out command)) {
+                            if (worker.CancellationPending) {
+                                break;
+                            }
+                            
                             Console.WriteLine("Client write: " + command);//DEBUGNOW
                             sw.Write(command);
                         }
@@ -89,6 +114,7 @@ namespace IHExt {
                     }//if extToMgsvCmdQueue
                 }//while !worker.CancellationPending
             }//using pipeIn
+            Console.WriteLine("serverIn_DoWork exit");
         }//serverIn_DoWork
 
         //tex mgsv_out pipe (IHExt in) process thread
@@ -121,6 +147,7 @@ namespace IHExt {
 
                 //ToMgsvCmd("IHExtStarted");//DEBUG
                 while (!worker.CancellationPending) {
+                    //Console.WriteLine("serverOut_DoWork");//DEBUG
                     StreamReader sr = new StreamReader(serverOut, Encoding.UTF8);//tex DEBUGNOW: will hang if ouside the loop
                     string message;
                     int count = 0;
@@ -129,6 +156,10 @@ namespace IHExt {
                     //was: while ((line = sr.ReadLine()) != null) {
                     var peek = sr.Peek();//DEBUG
                     while (sr.Peek() > 0) {
+                        if (worker.CancellationPending) {
+                            break;
+                        }
+
                         //OFF see above
                         //message = sr.ReadLine();
                         //message = sr.ReadToEnd();
@@ -144,6 +175,7 @@ namespace IHExt {
                     }//while Read
                 }//while !worker.CancellationPending
             }//using pipeOut
+            Console.WriteLine("serverOut_DoWork exit");
         }//serverOut_DoWork
 
         private static string ReadByChar(StreamReader sr) {
