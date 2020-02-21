@@ -127,7 +127,7 @@ namespace IHExt {
             DateTime currentDate = DateTime.Now;
             long extSession = currentDate.Ticks;
 
-            ipc = new IPC(usePipe, serverInName, serverOutName, toExtFilePath, toMgsvFilePath, extSession);
+            ipc = new IPC(extSession, usePipe, serverInName, serverOutName, toExtFilePath, toMgsvFilePath);
 
             AddCommands();
 
