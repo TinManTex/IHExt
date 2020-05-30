@@ -40,8 +40,7 @@ namespace IHExt {
             if (e.Key == Key.Enter) {
                 TextBox textBox = (TextBox)sender;
 
-                var app = (App)Application.Current;
-                app.ToMgsvCmd("input|"+textBox.Name+"|"+textBox.Text);
+                ToMgsvCmd("input|"+textBox.Name+"|"+textBox.Text);
 
                 textBox.Text = String.Empty;
 
@@ -60,8 +59,7 @@ namespace IHExt {
                 if (selectedIndex == -1)//tex no item selected
                 {
                 } else {
-                    var app = (App)Application.Current;
-                    app.ToMgsvCmd("selected|" + listBox.Name + "|" + selectedIndex.ToString());
+                    ToMgsvCmd("selected|" + listBox.Name + "|" + selectedIndex.ToString());
                 }
 
                 e.Handled = true;
@@ -80,8 +78,7 @@ namespace IHExt {
                 {
                 } else
                 {
-                    var app = (App)Application.Current;
-                    app.ToMgsvCmd("activate|" + listBox.Name + "|" + selectedIndex.ToString());
+                    ToMgsvCmd("activate|" + listBox.Name + "|" + selectedIndex.ToString());
                 }
 
                 e.Handled = true;
@@ -100,8 +97,7 @@ namespace IHExt {
                 {
                 } else
                 {
-                    var app = (App)Application.Current;
-                    app.ToMgsvCmd("selectedcombo|" + comboBox.Name + "|" + selectedIndex.ToString());
+                    ToMgsvCmd("selectedcombo|" + comboBox.Name + "|" + selectedIndex.ToString());
                 }
 
                 e.Handled = true;
@@ -127,8 +123,7 @@ namespace IHExt {
         {
             if (e.Key == Key.Space)
             {
-                var app = (App)Application.Current;
-                app.ToMgsvCmd("togglemenu");
+                ToMgsvCmd("togglemenu");
             }
         }
 
@@ -138,8 +133,7 @@ namespace IHExt {
             {
                 ComboBox comboBox = (ComboBox)sender;
 
-                var app = (App)Application.Current;
-                app.ToMgsvCmd("input|" + comboBox.Name + "|" + comboBox.Text);
+                ToMgsvCmd("input|" + comboBox.Name + "|" + comboBox.Text);
 
                 comboBox.Text = String.Empty;
 
@@ -153,8 +147,7 @@ namespace IHExt {
             ComboBox comboBox = (ComboBox)sender;
             if (comboBox.SelectedIndex == -1)
             {
-                var app = (App)Application.Current;
-                app.ToMgsvCmd("comboboxtocurrent|" + comboBox.Name + "|" + comboBox.Text);
+                ToMgsvCmd("comboboxtocurrent|" + comboBox.Name + "|" + comboBox.Text);
 
                 e.Handled = true;
             }
@@ -162,8 +155,7 @@ namespace IHExt {
 
         private void OnGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
         {
-            var app = (App)Application.Current;
-            app.ToMgsvCmd("GotKeyboardFocus|" + menuLine.Name);
+            ToMgsvCmd("GotKeyboardFocus|" + menuLine.Name);
             menuLine.SelectAll();
 
             e.Handled = true;
@@ -173,8 +165,7 @@ namespace IHExt {
         {
             if (e.Key == Key.Enter)
             {
-                var app = (App)Application.Current;
-                app.ToMgsvCmd("EnterText|" + menuLine.Name + "|" + menuLine.Text);
+                ToMgsvCmd("EnterText|" + menuLine.Name + "|" + menuLine.Text);
             }
             //DEBUGNOW e.Handled = true;
         }
@@ -197,5 +188,11 @@ namespace IHExt {
                 }
             }
         }
-    }
-}
+
+        //
+        void ToMgsvCmd(string message) {
+            var app = (App)Application.Current;
+            app.GetIPC().ToMgsvCmd(message);
+        }
+    }//class MainWindow
+}//namespace IHExt
